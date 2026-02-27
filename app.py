@@ -732,46 +732,46 @@ if st.session_state.proses_selesai:
         
         st.caption("HDV dan m digunakan untuk menentukan berapa banyak Deduct Values yang masuk perhitungan CDV.")
 
-    # -----------------------------
-    # C. Calculate Pavement Condition Index (PCI)
-    # -----------------------------
-    st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
-    col_c1, col_c2, col_c3 = st.columns([1,1,1], gap="large")
-    
-    # Max CDV (sama background)
-    with col_c1:
-        st.markdown(f"""
-        <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
-          <div style="font-size:13px;color:#1b5e20;font-weight:600;">Max CDV</div>
-          <div style="font-size:28px;font-weight:800;margin-top:6px;color:{info_card_txt};">{seg_data['CDV']:.2f}</div>
-          <div style="font-size:11px;color:#4b6b4b;margin-top:6px;">(Total deduct value yang menentukan PCI)</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # PCI + progress bar (bungkus juga supaya bg sama)
-    with col_c2:
-        pci_val = seg_data['PCI']
-        st.markdown(f"""
-        <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
-          <div style="font-size:13px;color:#222;font-weight:600;">PCI = 100 - Max_CDV</div>
-          <div style="font-size:36px;font-weight:900;margin-top:6px;color:{info_card_txt};">{pci_val:.2f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.progress(min(max(pci_val/100.0, 0.0), 1.0))
-    
-    # Rating card (TIDAK diubah — tetap pakai warna per rating)
-    with col_c3:
-        bg_col = warna_pci.get(seg_data['Rating'], "#FFFFFF")
-        txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
-        st.markdown(f"""
-        <div style="background:{bg_col}; color:{txt_col}; padding:18px; border-radius:10px; text-align:center; border:1px solid #ccc;">
-          <div style="font-size:12px;font-weight:600;">Rating (ASTM)</div>
-          <div style="font-size:28px;font-weight:900;margin-top:8px;">{seg_data['Rating']}</div>
-          <div style="font-size:11px;margin-top:6px;">(Kategori kondisi perkerasan menurut ASTM D6433)</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.caption("PCI di atas juga divisualkan sebagai progress bar untuk memudahkan pembacaan kondisi secara cepat.")
+        # -----------------------------
+        # C. Calculate Pavement Condition Index (PCI)
+        # -----------------------------
+        st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
+        col_c1, col_c2, col_c3 = st.columns([1,1,1], gap="large")
+        
+        # Max CDV (sama background)
+        with col_c1:
+            st.markdown(f"""
+            <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
+              <div style="font-size:13px;color:#1b5e20;font-weight:600;">Max CDV</div>
+              <div style="font-size:28px;font-weight:800;margin-top:6px;color:{info_card_txt};">{seg_data['CDV']:.2f}</div>
+              <div style="font-size:11px;color:#4b6b4b;margin-top:6px;">(Total deduct value yang menentukan PCI)</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # PCI + progress bar (bungkus juga supaya bg sama)
+        with col_c2:
+            pci_val = seg_data['PCI']
+            st.markdown(f"""
+            <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
+              <div style="font-size:13px;color:#222;font-weight:600;">PCI = 100 - Max_CDV</div>
+              <div style="font-size:36px;font-weight:900;margin-top:6px;color:{info_card_txt};">{pci_val:.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.progress(min(max(pci_val/100.0, 0.0), 1.0))
+        
+        # Rating card (TIDAK diubah — tetap pakai warna per rating)
+        with col_c3:
+            bg_col = warna_pci.get(seg_data['Rating'], "#FFFFFF")
+            txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
+            st.markdown(f"""
+            <div style="background:{bg_col}; color:{txt_col}; padding:18px; border-radius:10px; text-align:center; border:1px solid #ccc;">
+              <div style="font-size:12px;font-weight:600;">Rating (ASTM)</div>
+              <div style="font-size:28px;font-weight:900;margin-top:8px;">{seg_data['Rating']}</div>
+              <div style="font-size:11px;margin-top:6px;">(Kategori kondisi perkerasan menurut ASTM D6433)</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.caption("PCI di atas juga divisualkan sebagai progress bar untuk memudahkan pembacaan kondisi secara cepat.")
     
     # Tombol Download PDF
     st.download_button(
@@ -781,6 +781,7 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
 
 
 
