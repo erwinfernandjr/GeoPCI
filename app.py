@@ -329,7 +329,7 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                             f.write(dsm_file.getbuffer())
                             
                     elif dsm_mode == "Paste Link Google Drive":
-                        st.info("⏳ Mengunduh DSM dari Google Drive... (Ini sangat cepat!)")
+                        st.info("⏳ Mengunduh DSM dari Google Drive")
                         import gdown
                         import re
                         match = re.search(r"/d/([a-zA-Z0-9_-]+)", dsm_link)
@@ -460,24 +460,109 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     seg_gdf["PCI"] = seg_gdf["PCI"].fillna(100)
                     seg_gdf["Rating"] = seg_gdf["Rating"].fillna("Good")
 
-                    # =========================================
-                    # VISUALISASI PETA & GRAFIK
-                    # =========================================
-                    # -- MULAI: konstanta warna UI (module-level, harus selalu ada di setiap run) --
-                    warna_pci = {
-                        "Good": "#006400",
-                        "Satisfactory": "#8FBC8F",
-                        "Fair": "#FFFF00",
-                        "Poor": "#FF6347",
-                        "Very Poor": "#FF4500",
-                        "Serious": "#8B0000",
-                        "Failed": "#A9A9A9"
-                    }
+                    # ===========================
+                    # VISUALISASI PETA & GRAFIK  (robust & guarded)
+                    # ===========================
+                    # Pastikan warna sudah ada (jika Anda sudah meletakkan warna di top-level, ini tidak akan menimpa)
+                    if 'warna_pci' not in locals():
+                        warna_pci = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00",
+                                     "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
+                    if 'info_card_bg' not in locals():
+                        info_card_bg = "#f3f8f1"
+                    if 'info_card_border' not in locals():
+                        info_card_border = "#d7efd8"
+                    if 'info_card_txt' not in locals():
+                        info_card_txt = "#145214"
                     
-                    # Warna untuk kartu informasi (samakan semua kecuali Rating)
-                    info_card_bg = "#f3f8f1"      # latar kartu (light green-ish)
-                    info_card_border = "#d7efd8"  # border yang serasi
-                    info_card_txt = "#145214"     # teks angka/utama
+                    # Siapkan default paths agar selalu ada variabel ketika diexpose ke session_state
+                    peta_path = os.path.join(tmpdir, "peta_pci.png")
+                    grafik_path = os.path.join(tmpdir, "grafik_pci.png")
+                    
+                    # Jika seg_gdf valid dan tidak kosong -> buat peta; jika tidak, buat gambar placeholder sederhana
+                    try:
+                        if 'seg_gdf' in locals() and isinstance(seg_gdf, gpd.GeoDataFrame) and not seg_gdf.empty:
+                            # Buat plot peta
+                            fig_map, ax_map = plt.subplots(figsize=(10,6))
+                            seg_plot = seg_gdf.copy()
+                            # buffer kecil supaya label tidak terlalu menempel pada batas polygon (opsional)
+                            try:
+                                seg_plot["geometry"] = seg_plot.geometry.buffer(4)
+                            except Exception:
+                                # kalau buffer gagal, tetap gunakan geometry asli
+                                seg_plot = seg_gdf.copy()
+                    
+                            legend_handles = []
+                            for rating, warna in warna_pci.items():
+                                subset = seg_plot[seg_plot["Rating"] == rating]
+                                if not subset.empty:
+                                    subset.plot(ax=ax_map, color=warna, edgecolor="black", label=f"{rating}")
+                                    legend_handles.append(mpatches.Patch(color=warna, label=f"{rating} ({len(subset)})"))
+                    
+                            # label segmen (gunakan representative_point() agar berada di dalam poligon)
+                            for idx, row in seg_gdf.iterrows():
+                                try:
+                                    pt = row.geometry.representative_point() if hasattr(row.geometry, "representative_point") else row.geometry.centroid
+                                    ax_map.text(
+                                        pt.x, pt.y,
+                                        f"S{row['Segmen']}\n{row['PCI']:.0f}",
+                                        fontsize=7, weight="bold", ha="center", va="center",
+                                        bbox=dict(facecolor="white", alpha=0.8, boxstyle="round,pad=0.2", edgecolor="gray", lw=0.4)
+                                    )
+                                except Exception:
+                                    # jika ada masalah dengan satu row, lewati agar tidak menghentikan keseluruhan loop
+                                    continue
+                    
+                            if legend_handles:
+                                ax_map.legend(handles=legend_handles, loc="best", title="Kategori PCI", fontsize=8, title_fontsize=9)
+                    
+                            ax_map.axis("off")
+                            plt.savefig(peta_path, dpi=300, bbox_inches='tight')
+                            plt.close(fig_map)
+                    
+                            # Buat grafik ringkasan
+                            fig_bar, ax_bar = plt.subplots(figsize=(6,4))
+                            rekap = seg_gdf["Rating"].value_counts()
+                            warna_bar = [warna_pci.get(x, "grey") for x in rekap.index]
+                            rekap.plot(kind="bar", color=warna_bar, edgecolor="black", ax=ax_bar)
+                            plt.xticks(rotation=45)
+                            plt.tight_layout()
+                            plt.savefig(grafik_path, dpi=300)
+                            plt.close(fig_bar)
+                    
+                        else:
+                            # fallback: buat gambar placeholder sederhana jika tidak ada seg_gdf
+                            import matplotlib.pyplot as _plt
+                            fig_map, ax_map = _plt.subplots(figsize=(10,6))
+                            ax_map.text(0.5, 0.5, "Peta tidak tersedia (tidak ada segmen)", ha="center", va="center", fontsize=16, color="gray")
+                            ax_map.axis("off")
+                            _plt.savefig(peta_path, dpi=150, bbox_inches='tight')
+                            _plt.close(fig_map)
+                    
+                            fig_bar, ax_bar = _plt.subplots(figsize=(6,4))
+                            ax_bar.text(0.5, 0.5, "Grafik tidak tersedia", ha="center", va="center", fontsize=12, color="gray")
+                            ax_bar.axis("off")
+                            _plt.savefig(grafik_path, dpi=150, bbox_inches='tight')
+                            _plt.close(fig_bar)
+                    
+                    except Exception as vis_e:
+                        # Jika terjadi error di blok visualisasi, catat (tetap lanjutkan proses sehingga PDF dibuat jika mungkin)
+                        st.warning(f"⚠️ Visualisasi peta/grafik gagal dibuat: {vis_e}")
+                        # buat placeholder minimal agar peta_path/grafik_path tetap ada
+                        try:
+                            import matplotlib.pyplot as _plt
+                            fig_map, ax_map = _plt.subplots(figsize=(10,6))
+                            ax_map.text(0.5, 0.5, "Peta gagal dibuat", ha="center", va="center", fontsize=14, color="gray")
+                            ax_map.axis("off")
+                            _plt.savefig(peta_path, dpi=150, bbox_inches='tight')
+                            _plt.close(fig_map)
+                            fig_bar, ax_bar = _plt.subplots(figsize=(6,4))
+                            ax_bar.text(0.5, 0.5, "Grafik gagal dibuat", ha="center", va="center", fontsize=12, color="gray")
+                            ax_bar.axis("off")
+                            _plt.savefig(grafik_path, dpi=150, bbox_inches='tight')
+                            _plt.close(fig_bar)
+                        except Exception:
+                            # kalau pembuatan placeholder juga gagal, jangan lempar lagi — file tidak ada tapi proses masih aman
+                            pass
                     # -- SELESAI: konstanta warna UI --
                     
                     legend_handles = []
@@ -788,6 +873,7 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
 
 
 
