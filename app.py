@@ -129,17 +129,22 @@ def hitung_diameter_pothole(gdf):
     gdf["DIAMETER_MM"] = diameter_list
     return gdf
 
+# --- PERUBAHAN BESAR: FUNGSI HEMAT RAM UNTUK MEMBACA DSM ---
 def hitung_depth(gdf, dsm_path, buffer_distance=0.3):
-    DSM = rasterio.open(dsm_path)
-    if gdf.crs != DSM.crs:
-        gdf = gdf.to_crs(DSM.crs)
+    # Hanya buka file sebentar untuk mengambil info CRS dan Nodata (Tidak meload map ke RAM)
+    with rasterio.open(dsm_path) as DSM:
+        dsm_crs = DSM.crs
+        nodata_val = DSM.nodata
+
+    if gdf.crs != dsm_crs:
+        gdf = gdf.to_crs(dsm_crs)
 
     buffer_outer = gdf.geometry.buffer(buffer_distance)
     ring_geom = buffer_outer.difference(gdf.geometry)
-    dsm_array = DSM.read(1)
 
-    stats_hole = zonal_stats(gdf.geometry, dsm_array, affine=DSM.transform, stats=["percentile_10"], nodata=DSM.nodata)
-    stats_ring = zonal_stats(ring_geom, dsm_array, affine=DSM.transform, stats=["median"], nodata=DSM.nodata)
+    # Zonal_stats langsung membaca dari file Path (Windowed Reading). Super Hemat RAM!
+    stats_hole = zonal_stats(gdf.geometry, dsm_path, stats=["percentile_10"], nodata=nodata_val)
+    stats_ring = zonal_stats(ring_geom, dsm_path, stats=["median"], nodata=nodata_val)
 
     depth_list = []
     for i in range(len(gdf)):
@@ -152,6 +157,7 @@ def hitung_depth(gdf, dsm_path, buffer_distance=0.3):
     gdf = gdf.copy()
     gdf["DEPTH_MM"] = depth_list
     return gdf
+# -----------------------------------------------------------
 
 def tentukan_severity(distress_type, row):
     distress = distress_type.lower()
@@ -241,9 +247,7 @@ with col1:
     st.subheader("📁 1. Data Dasar")
     jalan_file = st.file_uploader("Upload Shapefile Jalan (.zip)", type="zip")
     
-    # --- FITUR BARU: OPSI INPUT DSM ---
     dsm_mode = st.radio("Cara Input Data DSM:", ["Upload File .tif", "Paste Link Google Drive"])
-    
     dsm_file = None
     dsm_link = ""
     
@@ -263,7 +267,6 @@ with col2:
     for d in selected_distress:
         file = st.file_uploader(f"Upload SHP {d} (.zip)", type="zip", key=d)
         if file:
-            # Simpan dengan key original (lowercase dengan underscore)
             original_key = d.lower().replace(' ', '_')
             uploaded_distress[original_key] = file
 
@@ -274,16 +277,12 @@ st.divider()
 # =========================================
 if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=True):
     
-    # -----------------------------------------
-    # PERBAIKAN BUG VALIDASI DSM (Link/Upload)
-    # -----------------------------------------
     is_dsm_valid = False
     if dsm_mode == "Upload File .tif" and dsm_file is not None:
         is_dsm_valid = True
     elif dsm_mode == "Paste Link Google Drive" and dsm_link != "":
         is_dsm_valid = True
 
-    # Pengecekan keseluruhan
     if not jalan_file or not uploaded_distress or not is_dsm_valid:
         st.error("⚠️ Mohon lengkapi Shapefile Jalan, Data DSM (Upload/Link), dan minimal 1 Data Kerusakan.")
     else:
@@ -321,7 +320,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         st.info("⏳ Mengunduh DSM dari Google Drive... (Ini sangat cepat!)")
                         import gdown
                         import re
-                        # Mengekstrak ID dari link Google Drive
                         match = re.search(r"/d/([a-zA-Z0-9_-]+)", dsm_link)
                         if match:
                             file_id = match.group(1)
