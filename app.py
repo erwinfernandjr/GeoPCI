@@ -464,7 +464,10 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     # VISUALISASI PETA & GRAFIK
                     # =========================================
                     warna_pci = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
-                    
+                    # Warna untuk kartu informasi (samakan semua kecuali Rating)
+                    info_card_bg = "#f3f8f1"      # latar kartu (light green-ish)
+                    info_card_border = "#d7efd8"  # border yang serasi
+                    info_card_txt = "#145214"     # teks angka/utama
                     # Peta
                     fig_map, ax_map = plt.subplots(figsize=(10,6))
                     seg_plot = seg_gdf.copy()
@@ -705,24 +708,24 @@ if st.session_state.proses_selesai:
             )
 
         # -----------------------------
-        # GANTI: TABEL B (Maximum allowable number of distresses (m))
+        # B. Maximum allowable number of distresses (m)
         # -----------------------------
         st.markdown("**B. Maximum allowable number of distresses (m)**")
         col_b1, col_b2 = st.columns([1,1], gap="large")
         with col_b1:
             st.markdown(f"""
-            <div style="background:#f7fbff;border:1px solid #d0e6ff;padding:12px;border-radius:10px;text-align:center;">
+            <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
               <div style="font-size:13px;color:#34495e;font-weight:600;">Highest Deduct Value (HDV)</div>
-              <div style="font-size:32px;font-weight:800;margin-top:6px;color:#0b5394;">{hdv_val:.2f}</div>
+              <div style="font-size:32px;font-weight:800;margin-top:6px;color:{info_card_txt};">{hdv_val:.2f}</div>
               <div style="font-size:11px;color:#566573;margin-top:6px;">(DV tertinggi yang ditemukan pada segmen)</div>
             </div>
             """, unsafe_allow_html=True)
         
         with col_b2:
             st.markdown(f"""
-            <div style="background:#fffaf0;border:1px solid #ffe6b3;padding:12px;border-radius:10px;text-align:center;">
+            <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
               <div style="font-size:13px;color:#4d3b00;font-weight:600;">m = 1 + (9/95)*(100 - HDV)  (maks 10)</div>
-              <div style="font-size:32px;font-weight:800;margin-top:6px;color:#b35900;">{m_val:.2f}</div>
+              <div style="font-size:32px;font-weight:800;margin-top:6px;color:{info_card_txt};">{m_val:.2f}</div>
               <div style="font-size:11px;color:#7a6b47;margin-top:6px;">(Jumlah maksimum distress yang dipertimbangkan)</div>
             </div>
             """, unsafe_allow_html=True)
@@ -730,34 +733,33 @@ if st.session_state.proses_selesai:
         st.caption("HDV dan m digunakan untuk menentukan berapa banyak Deduct Values yang masuk perhitungan CDV.")
 
     # -----------------------------
-    # GANTI: TABEL C (Calculate Pavement Condition Index)
+    # C. Calculate Pavement Condition Index (PCI)
     # -----------------------------
     st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
     col_c1, col_c2, col_c3 = st.columns([1,1,1], gap="large")
     
-    # Max CDV
+    # Max CDV (sama background)
     with col_c1:
         st.markdown(f"""
-        <div style="background:#f3f8f1;border:1px solid #d7efd8;padding:12px;border-radius:10px;text-align:center;">
+        <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
           <div style="font-size:13px;color:#1b5e20;font-weight:600;">Max CDV</div>
-          <div style="font-size:28px;font-weight:800;margin-top:6px;color:#145214;">{seg_data['CDV']:.2f}</div>
+          <div style="font-size:28px;font-weight:800;margin-top:6px;color:{info_card_txt};">{seg_data['CDV']:.2f}</div>
           <div style="font-size:11px;color:#4b6b4b;margin-top:6px;">(Total deduct value yang menentukan PCI)</div>
         </div>
         """, unsafe_allow_html=True)
     
-    # PCI + progress bar
+    # PCI + progress bar (bungkus juga supaya bg sama)
     with col_c2:
         pci_val = seg_data['PCI']
         st.markdown(f"""
-        <div style="padding:6px;border-radius:10px;text-align:center;">
+        <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
           <div style="font-size:13px;color:#222;font-weight:600;">PCI = 100 - Max_CDV</div>
-          <div style="font-size:36px;font-weight:900;margin-top:6px;">{pci_val:.2f}</div>
+          <div style="font-size:36px;font-weight:900;margin-top:6px;color:{info_card_txt};">{pci_val:.2f}</div>
         </div>
         """, unsafe_allow_html=True)
-        # progress bar visual (normalisasi ke 0..1)
         st.progress(min(max(pci_val/100.0, 0.0), 1.0))
     
-    # Rating card (besar & kontras)
+    # Rating card (TIDAK diubah — tetap pakai warna per rating)
     with col_c3:
         bg_col = warna_pci.get(seg_data['Rating'], "#FFFFFF")
         txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
@@ -779,5 +781,6 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
 
 
