@@ -34,7 +34,6 @@ st.divider()
 # =========================================
 # INISIALISASI MEMORI (SESSION STATE)
 # =========================================
-# Ini agar Streamlit tidak lupa hasil proses saat dropdown diklik
 if 'proses_selesai' not in st.session_state:
     st.session_state.proses_selesai = False
 if 'df_pci' not in st.session_state:
@@ -146,6 +145,7 @@ def hitung_diameter_pothole(gdf):
     gdf["DIAMETER_MM"] = diameter_list
     return gdf
 
+# --- Fungsi Hemat RAM DSM ---
 def hitung_depth(gdf, dsm_path, buffer_distance=0.3):
     with rasterio.open(dsm_path) as DSM:
         dsm_crs = DSM.crs
@@ -461,7 +461,7 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     seg_gdf["PCI"] = seg_gdf["PCI"].fillna(100)
                     seg_gdf["Rating"] = seg_gdf["Rating"].fillna("Good")
 
-                   # =========================================
+                    # =========================================
                     # VISUALISASI PETA & GRAFIK
                     # =========================================
                     warna_pci = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
@@ -471,27 +471,23 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     seg_plot = seg_gdf.copy()
                     seg_plot["geometry"] = seg_plot.geometry.buffer(4)
                     
-                    legend_handles = [] # Tempat menyimpan info legenda
+                    legend_handles = []
                     
-                    # Plot warna jalan
                     for rating, warna in warna_pci.items():
                         subset = seg_plot[seg_plot["Rating"] == rating]
                         if not subset.empty:
                             subset.plot(ax=ax_map, color=warna, edgecolor="black", label=f"{rating}")
-                            # Tambahkan item ke legenda beserta jumlah segmennya
                             legend_handles.append(mpatches.Patch(color=warna, label=f"{rating} ({len(subset)})"))
                     
-                    # Tambahkan Label Nomor Segmen & Nilai PCI di atas peta
                     for idx, row in seg_gdf.iterrows():
                         centroid = row.geometry.centroid
                         ax_map.text(
                             centroid.x, centroid.y,
-                            f"S{row['Segmen']}\n{row['PCI']:.0f}", # Menampilkan format: S1, S2, dst beserta nilai PCI tanpa koma
+                            f"S{row['Segmen']}\n{row['PCI']:.0f}",
                             fontsize=7, weight="bold", ha="center", va="center",
                             bbox=dict(facecolor="white", alpha=0.8, boxstyle="round,pad=0.2", edgecolor="gray", lw=0.5)
                         )
                     
-                    # Munculkan Legenda di peta
                     if legend_handles:
                         ax_map.legend(handles=legend_handles, loc="best", title="Kategori PCI", fontsize=8, title_fontsize=9)
                     
@@ -500,8 +496,16 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     plt.savefig(peta_path, dpi=300, bbox_inches='tight')
                     plt.close(fig_map)
                     
-                    # --- 2. Pembuatan Grafik Bar (Biarkan kode grafik tetap seperti aslinya) ---
+                    # --- 2. Pembuatan Grafik Bar ---
                     fig_bar, ax_bar = plt.subplots(figsize=(6,4))
+                    rekap = seg_gdf["Rating"].value_counts()
+                    warna_bar = [warna_pci.get(x, "grey") for x in rekap.index]
+                    rekap.plot(kind="bar", color=warna_bar, edgecolor="black", ax=ax_bar)
+                    plt.xticks(rotation=45)
+                    plt.tight_layout()
+                    grafik_path = os.path.join(tmpdir, "grafik_pci.png")
+                    plt.savefig(grafik_path, dpi=300)
+                    plt.close(fig_bar)
                     
                     # =========================================
                     # PEMBUATAN PDF
@@ -671,5 +675,3 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
-
-
