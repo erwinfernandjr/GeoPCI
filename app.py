@@ -260,10 +260,10 @@ with st.sidebar:
     epsg_code = st.number_input("Kode EPSG UTM Lokal (Contoh: 32749 untuk Jawa Tengah)", value=32749, step=1)
    
     st.divider()
-        if st.button("🔄 Reset / Mulai Ulang Aplikasi", use_container_width=True):
-            for key in st.session_state.keys():
-                del st.session_state[key]
-            st.rerun() # Refresh halaman secara otomatis
+    if st.button("🔄 Reset / Mulai Ulang Aplikasi", use_container_width=True):
+        for key in st.session_state.keys():
+            del st.session_state[key]
+        st.rerun() # Refresh halaman secara otomatis
 # =========================================
 # TAMPILAN UTAMA (UPLOAD FILES)
 # =========================================
@@ -943,6 +943,7 @@ if st.session_state.proses_selesai:
             type="secondary",
             use_container_width=True
         )
+
 
 
 
