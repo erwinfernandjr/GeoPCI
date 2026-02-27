@@ -258,7 +258,11 @@ with st.sidebar:
     lebar_jalan = st.number_input("Lebar Jalan (m)", value=3.5, step=0.1)
     interval_segmen = st.number_input("Interval Segmen (m)", value=100, step=10)
     epsg_code = st.number_input("Kode EPSG UTM Lokal (Contoh: 32749 untuk Jawa Tengah)", value=32749, step=1)
-
+    st.divider()
+        if st.button("🔄 Reset / Mulai Ulang Aplikasi", use_container_width=True):
+            for key in st.session_state.keys():
+                del st.session_state[key]
+            st.rerun() # Refresh halaman secara otomatis
 # =========================================
 # TAMPILAN UTAMA (UPLOAD FILES)
 # =========================================
@@ -315,7 +319,7 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     if jalan.crs is None:
                         st.error("CRS shapefile jalan tidak terdefinisi!")
                         st.stop()
-                    if jalan.crs.is_geographic:
+                    if jalan.crs.to_epsg() != epsg_code:
                         jalan = jalan.to_crs(epsg=epsg_code)
                     
                     union_geom = jalan.geometry.union_all()
@@ -734,14 +738,8 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     # =========================================
                     st.session_state.df_pci = df_pci
                     st.session_state.df_detail = df_detail
-                    st.session_state.seg_gdf = seg_gdf           # <--- TAMBAHKAN INI UNTUK PETA
-                    st.session_state.excel_bytes = excel_bytes   # <--- TAMBAHKAN INI UNTUK EXCEL
-
-                    # =========================================
-                    # SIMPAN KE SESSION STATE SEBELUM TEMP DIHAPUS
-                    # =========================================
-                    st.session_state.df_pci = df_pci
-                    st.session_state.df_detail = df_detail
+                    st.session_state.seg_gdf = seg_gdf           
+                    st.session_state.excel_bytes = excel_bytes   
                     
                     with open(peta_path, "rb") as f:
                         st.session_state.peta_bytes = f.read()
@@ -751,19 +749,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         st.session_state.pdf_bytes = f.read()
                     with open(gpkg_path, "rb") as f:                
                         st.session_state.gpkg_bytes = f.read()       
-                        
-                    # =========================================
-                    # SIMPAN KE SESSION STATE SEBELUM TEMP DIHAPUS
-                    # =========================================
-                    st.session_state.df_pci = df_pci
-                    st.session_state.df_detail = df_detail
-                    
-                    with open(peta_path, "rb") as f:
-                        st.session_state.peta_bytes = f.read()
-                    with open(grafik_path, "rb") as f:
-                        st.session_state.grafik_bytes = f.read()
-                    with open(pdf_path, "rb") as f:
-                        st.session_state.pdf_bytes = f.read()
                         
                     # Beri tanda bahwa proses sudah 100% komplit
                     st.session_state.proses_selesai = True
@@ -780,7 +765,7 @@ if st.session_state.proses_selesai:
     
     col_res1, col_res2 = st.columns([2, 1])
     with col_res1:
-        st.subheader("🗺️ Peta Kondisi PCI (Interaktif)")
+        st.subheader("🗺️ Peta Kondisi PCI")
         
         # PETA INTERAKTIF FOLIUM
         if st.session_state.seg_gdf is not None:
@@ -957,4 +942,5 @@ if st.session_state.proses_selesai:
             type="secondary",
             use_container_width=True
         )
+
 
