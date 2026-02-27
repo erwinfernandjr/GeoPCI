@@ -759,7 +759,7 @@ if st.session_state.proses_selesai:
     
     # Rating card (besar & kontras)
     with col_c3:
-        bg_col = warna_pci_dict.get(seg_data['Rating'], "#FFFFFF")
+        bg_col = warna_pci.get(seg_data['Rating'], "#FFFFFF")
         txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
         st.markdown(f"""
         <div style="background:{bg_col}; color:{txt_col}; padding:18px; border-radius:10px; text-align:center; border:1px solid #ccc;">
@@ -779,4 +779,5 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
 
