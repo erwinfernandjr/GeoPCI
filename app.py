@@ -501,7 +501,7 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     plt.close(fig_map)
                     
                     # --- 2. Pembuatan Grafik Bar (Biarkan kode grafik tetap seperti aslinya) ---
-                    fig_bar, ax_bar = plt.subplots(figsize=(6,4)))
+                    fig_bar, ax_bar = plt.subplots(figsize=(6,4))
                     
                     # =========================================
                     # PEMBUATAN PDF
@@ -671,4 +671,5 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
 
