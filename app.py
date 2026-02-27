@@ -683,7 +683,7 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         text_astm = colors.black if rating_astm in ["Satisfactory", "Fair", "Good"] else colors.white
 
                         tabel_c_data = [
-                            ["Max_CDV", "PCI = 100 - Max_CDV", "Rating (ASTM)"],
+                            ["Max CDV", "PCI = 100 - Max CDV", "Rating (ASTM)"],
                             [f"{seg['CDV']:.2f}", f"{pci_val:.2f}", rating_astm]
                         ]
                         t_c = Table(tabel_c_data, colWidths=[3.16*inch, 3.16*inch, 3.18*inch])
@@ -957,3 +957,4 @@ if st.session_state.proses_selesai:
             type="secondary",
             use_container_width=True
         )
+
