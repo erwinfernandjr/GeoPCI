@@ -899,9 +899,9 @@ if st.session_state.proses_selesai:
         st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
         col_c1, col_c2, col_c3 = st.columns(3)
         with col_c1:
-            st.markdown(metric_card("Max_CDV", f"{seg_data['CDV']:.2f}"), unsafe_allow_html=True)
+            st.markdown(metric_card("Max CDV", f"{seg_data['CDV']:.2f}"), unsafe_allow_html=True)
         with col_c2:
-            st.markdown(metric_card("PCI = 100 - Max_CDV", f"{seg_data['PCI']:.2f}"), unsafe_allow_html=True)
+            st.markdown(metric_card("PCI = 100 - Max CDV", f"{seg_data['PCI']:.2f}"), unsafe_allow_html=True)
         with col_c3:
             bg_col = warna_pci_dict.get(seg_data['Rating'], "#FFFFFF")
             # Set text warna hitam jika background cerah, putih jika background gelap
@@ -943,6 +943,7 @@ if st.session_state.proses_selesai:
             type="secondary",
             use_container_width=True
         )
+
 
 
 
