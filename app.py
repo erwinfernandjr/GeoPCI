@@ -588,7 +588,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
 # =========================================
 # TAMPILKAN HASIL DI WEB (DARI SESSION STATE)
 # =========================================
-# Bagian ini di luar blok tombol "Proses" agar tidak hilang saat dropdown diklik
 if st.session_state.proses_selesai:
     st.success("✅ Analisis Berhasil!")
     
@@ -603,14 +602,10 @@ if st.session_state.proses_selesai:
     
     st.markdown("---")
     
-    # -----------------------------------------------------
-    # FITUR BARU: SKALA RATING & TABEL REKAPITULASI (DIPERBAIKI)
-    # -----------------------------------------------------
     col_tab, col_leg = st.columns([2, 1])
     
     with col_tab:
         st.subheader("Tabel Rekapitulasi Umum")
-        # Menyembunyikan Index Tabel (0, 1, 2, 3...)
         st.dataframe(
             st.session_state.df_pci[["Segmen", "STA", "TDV", "CDV", "PCI", "Rating"]], 
             use_container_width=True, 
@@ -618,7 +613,6 @@ if st.session_state.proses_selesai:
         )
 
     with col_leg:
-        # Menggunakan format st.markdown yang lebih aman dan rapi
         st.markdown("<h4 style='text-align: center; margin-bottom: 15px;'>Skala Rating PCI</h4>", unsafe_allow_html=True)
         
         skala_pci = [
@@ -632,7 +626,6 @@ if st.session_state.proses_selesai:
         ]
         
         for nama, bg, txt, rentang in skala_pci:
-            # HTML dipecah per baris agar tidak error saat dibaca Streamlit
             html_baris = f"""
             <div style='background-color: {bg}; color: {txt}; padding: 10px; margin-bottom: 5px; border-radius: 5px; display: flex; justify-content: space-between; font-weight: bold;'>
                 <span>{nama}</span>
@@ -648,20 +641,16 @@ if st.session_state.proses_selesai:
     st.subheader("🔎 Dashboard Detail Per Segmen")
     st.markdown("Pilih nomor segmen di bawah ini untuk melihat rincian perhitungan setara lembar kerja ASTM.")
 
-    # Dropdown memilih segmen
     list_segmen = st.session_state.df_pci["Segmen"].tolist()
     pilihan_segmen = st.selectbox("Pilih Segmen:", list_segmen)
 
     if pilihan_segmen:
-        # Ambil memori
         df_pci_mem = st.session_state.df_pci
         df_det_mem = st.session_state.df_detail
 
-        # Ambil data spesifik
         seg_data = df_pci_mem[df_pci_mem["Segmen"] == pilihan_segmen].iloc[0]
         df_seg_detail = df_det_mem[df_det_mem["Segmen"] == pilihan_segmen]
 
-        # Hitung HDV dan m
         hdv_val = df_seg_detail["DV"].max() if not df_seg_detail.empty else 0.0
         m_val = min(1 + (9.0 / 95.0) * (100.0 - hdv_val), 10.0) if hdv_val > 0 else 0.0
 
@@ -678,38 +667,47 @@ if st.session_state.proses_selesai:
             display_df = display_df[["Distress Type", "Severity", "Quantity (sq.m)", "Density", "DV"]]
             display_df.rename(columns={"Density": "Density (%)", "DV": "Deduct Value (DV)"}, inplace=True)
             
-            # Menggunakan st.dataframe dengan hide_index=True agar nomor index hilang
             st.dataframe(
                 display_df.style.format({"Quantity (sq.m)": "{:.2f}", "Density (%)": "{:.2f}", "Deduct Value (DV)": "{:.2f}"}),
                 use_container_width=True,
                 hide_index=True
             )
 
+        # FUNGSI PEMBANTU UNTUK KARTU METRIK HTML (TABEL B & C)
+        def metric_card(label, value, value_color="#4da6ff", bg_color="#1E2A38", text_color="#cbd5e1"):
+            return f"""
+            <div style="background-color: {bg_color}; padding: 15px; border-radius: 8px; border: 1px solid #2d3e50; text-align: center; height: 100%;">
+                <p style="margin: 0px; font-size: 14px; color: {text_color};">{label}</p>
+                <h2 style="margin: 5px 0px 0px 0px; color: {value_color}; font-size: 24px; font-weight: bold;">{value}</h2>
+            </div>
+            """
+
         # TABEL B
         st.markdown("**B. Maximum allowable number of distresses (m)**")
         col_b1, col_b2 = st.columns(2)
         with col_b1:
-            st.info(f"**Highest Deduct Value (HDV):** {hdv_val:.2f}")
+            st.markdown(metric_card("Highest Deduct Value (HDV)", f"{hdv_val:.2f}"), unsafe_allow_html=True)
         with col_b2:
-            st.info(f"**m = 1 + (9/95)*(100 - HDV) ≤ 10:** {m_val:.2f}")
+            st.markdown(metric_card("m = 1 + (9/95)*(100 - HDV) ≤ 10", f"{m_val:.2f}"), unsafe_allow_html=True)
+            
+        st.markdown("<br>", unsafe_allow_html=True)
 
         # TABEL C
         warna_pci_dict = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
         st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
         col_c1, col_c2, col_c3 = st.columns(3)
         with col_c1:
-            st.info(f"**Max_CDV:** {seg_data['CDV']:.2f}")
+            st.markdown(metric_card("Max_CDV", f"{seg_data['CDV']:.2f}"), unsafe_allow_html=True)
         with col_c2:
-            st.info(f"**PCI = 100 - Max_CDV:** {seg_data['PCI']:.2f}")
+            st.markdown(metric_card("PCI = 100 - Max_CDV", f"{seg_data['PCI']:.2f}"), unsafe_allow_html=True)
         with col_c3:
             bg_col = warna_pci_dict.get(seg_data['Rating'], "#FFFFFF")
-            txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
-            html_rating = f"""<div style='background-color: {bg_col}; color: {txt_col}; text-align: center; padding: 15px; border-radius: 5px; font-weight: bold; border: 1px solid #ccc;'>Rating (ASTM): {seg_data['Rating']}</div>"""
-            st.markdown(html_rating, unsafe_allow_html=True)
+            # Set text warna hitam jika background cerah, putih jika background gelap
+            txt_col = "#000000" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "#ffffff"
+            st.markdown(metric_card("Rating (ASTM)", seg_data['Rating'], value_color=txt_col, bg_color=bg_col, text_color=txt_col), unsafe_allow_html=True)
 
     st.markdown("---")
 
-    # Tombol Download PDF
     st.download_button(
         label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
         data=st.session_state.pdf_bytes,
