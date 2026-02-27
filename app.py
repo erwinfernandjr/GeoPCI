@@ -145,7 +145,6 @@ def hitung_diameter_pothole(gdf):
     gdf["DIAMETER_MM"] = diameter_list
     return gdf
 
-# --- Fungsi Hemat RAM DSM ---
 def hitung_depth(gdf, dsm_path, buffer_distance=0.3):
     with rasterio.open(dsm_path) as DSM:
         dsm_crs = DSM.crs
@@ -466,7 +465,7 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     # =========================================
                     warna_pci = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
                     
-                    # --- 1. Pembuatan Peta ---
+                    # Peta
                     fig_map, ax_map = plt.subplots(figsize=(10,6))
                     seg_plot = seg_gdf.copy()
                     seg_plot["geometry"] = seg_plot.geometry.buffer(4)
@@ -496,7 +495,7 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     plt.savefig(peta_path, dpi=300, bbox_inches='tight')
                     plt.close(fig_map)
                     
-                    # --- 2. Pembuatan Grafik Bar ---
+                    # Grafik
                     fig_bar, ax_bar = plt.subplots(figsize=(6,4))
                     rekap = seg_gdf["Rating"].value_counts()
                     warna_bar = [warna_pci.get(x, "grey") for x in rekap.index]
@@ -602,8 +601,71 @@ if st.session_state.proses_selesai:
         st.image(st.session_state.grafik_bytes)
         st.metric("Rata-rata PCI", round(st.session_state.df_pci["PCI"].mean(), 2))
     
-    st.subheader("Tabel Rekapitulasi Umum")
-    st.dataframe(st.session_state.df_pci[["Segmen", "STA", "TDV", "CDV", "PCI", "Rating"]], use_container_width=True)
+    st.markdown("---")
+    
+    # -----------------------------------------------------
+    # FITUR BARU: SKALA RATING & TABEL REKAPITULASI
+    # -----------------------------------------------------
+    col_tab, col_leg = st.columns([2, 1])
+    
+    with col_tab:
+        st.subheader("Tabel Rekapitulasi Umum")
+        # Menyembunyikan Index Tabel (0, 1, 2, 3...)
+        st.dataframe(
+            st.session_state.df_pci[["Segmen", "STA", "TDV", "CDV", "PCI", "Rating"]], 
+            use_container_width=True, 
+            hide_index=True
+        )
+
+    with col_leg:
+        # Membuat HTML Custom untuk Skala PCI persis seperti referensi
+        pci_scale_html = """
+        <div style="font-family: sans-serif; max-width: 100%; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f9f9f9;">
+            <h4 style="text-align: center; margin-top: 0px; margin-bottom: 15px; color: #333;">Skala Rating PCI</h4>
+            
+            <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                <div style="flex-grow: 1; background-color: #006400; color: white; text-align: center; padding: 8px; font-weight: bold;">Good</div>
+                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">100</div>
+            </div>
+            
+            <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                <div style="flex-grow: 1; background-color: #8FBC8F; color: black; text-align: center; padding: 8px; font-weight: bold;">Satisfactory</div>
+                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">85</div>
+            </div>
+            
+            <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                <div style="flex-grow: 1; background-color: #FFFF00; color: black; text-align: center; padding: 8px; font-weight: bold;">Fair</div>
+                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">70</div>
+            </div>
+            
+            <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                <div style="flex-grow: 1; background-color: #FF6347; color: white; text-align: center; padding: 8px; font-weight: bold;">Poor</div>
+                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">55</div>
+            </div>
+            
+            <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                <div style="flex-grow: 1; background-color: #FF4500; color: white; text-align: center; padding: 8px; font-weight: bold;">Very Poor</div>
+                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">40</div>
+            </div>
+            
+            <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                <div style="flex-grow: 1; background-color: #8B0000; color: white; text-align: center; padding: 8px; font-weight: bold;">Serious</div>
+                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">25</div>
+            </div>
+            
+            <div style="display: flex; align-items: center; margin-bottom: 2px;">
+                <div style="flex-grow: 1; background-color: #A9A9A9; color: black; text-align: center; padding: 8px; font-weight: bold;">Failed</div>
+                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">10</div>
+            </div>
+            
+            <div style="display: flex; align-items: center;">
+                <div style="flex-grow: 1;"></div>
+                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">0</div>
+            </div>
+        </div>
+        """
+        st.markdown(pci_scale_html, unsafe_allow_html=True)
+
 
     # =========================================
     # FITUR DASHBOARD DETAIL PER SEGMEN
@@ -641,7 +703,13 @@ if st.session_state.proses_selesai:
             display_df["Quantity (sq.m)"] = (display_df["Density"] / 100.0) * (interval_segmen * lebar_jalan)
             display_df = display_df[["Distress Type", "Severity", "Quantity (sq.m)", "Density", "DV"]]
             display_df.rename(columns={"Density": "Density (%)", "DV": "Deduct Value (DV)"}, inplace=True)
-            st.table(display_df.style.format({"Quantity (sq.m)": "{:.2f}", "Density (%)": "{:.2f}", "Deduct Value (DV)": "{:.2f}"}))
+            
+            # Menggunakan st.dataframe dengan hide_index=True agar nomor index hilang
+            st.dataframe(
+                display_df.style.format({"Quantity (sq.m)": "{:.2f}", "Density (%)": "{:.2f}", "Deduct Value (DV)": "{:.2f}"}),
+                use_container_width=True,
+                hide_index=True
+            )
 
         # TABEL B
         st.markdown("**B. Maximum allowable number of distresses (m)**")
