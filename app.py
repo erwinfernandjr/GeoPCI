@@ -359,113 +359,113 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         
                         all_distress_list.append(gdf)
 
-                # =========================================
-                # 4. OVERLAY & FLATTEN
-                # =========================================
-                
-                df_detail_list = []
-                
-                if all_distress_list:
-                
-                    # Pastikan semua distress layer punya CRS identik dengan seg_gdf
-                    cleaned_layers = []
-                    for gdf in all_distress_list:
-                
-                        if gdf.crs is None:
+                    # =========================================
+                    # 4. OVERLAY & FLATTEN
+                    # =========================================
+                    
+                    df_detail_list = []
+                    
+                    if all_distress_list:
+                    
+                        # Pastikan semua distress layer punya CRS identik dengan seg_gdf
+                        cleaned_layers = []
+                        for gdf in all_distress_list:
+                    
+                            if gdf.crs is None:
+                                gdf = gdf.set_crs(seg_gdf.crs, allow_override=True)
+                    
+                            elif gdf.crs != seg_gdf.crs:
+                                gdf = gdf.to_crs(seg_gdf.crs)
+                    
+                            # Paksa override supaya object CRS benar-benar identik
                             gdf = gdf.set_crs(seg_gdf.crs, allow_override=True)
-                
-                        elif gdf.crs != seg_gdf.crs:
-                            gdf = gdf.to_crs(seg_gdf.crs)
-                
-                        # Paksa override supaya object CRS benar-benar identik
-                        gdf = gdf.set_crs(seg_gdf.crs, allow_override=True)
-                
-                        cleaned_layers.append(gdf)
-                
-                    # Gabungkan semua distress menjadi satu GeoDataFrame
-                    master_distress = gpd.GeoDataFrame(
-                        pd.concat(cleaned_layers, ignore_index=True),
-                        geometry="geometry",
-                        crs=seg_gdf.crs
-                    )
-                
-                    # Urutkan berdasarkan prioritas (High dulu)
-                    master_distress = master_distress.sort_values(
-                        by="Priority",
-                        ascending=False
-                    ).reset_index(drop=True)
-                
-                    # Hilangkan overlap berdasarkan prioritas
-                    accumulated_geom = Polygon()
-                    cleaned_geometries = []
-                
-                    for _, row in master_distress.iterrows():
-                        geom = row.geometry
-                
-                        if geom.is_empty:
-                            cleaned_geometries.append(geom)
-                            continue
-                
-                        new_geom = geom.difference(accumulated_geom)
-                
-                        cleaned_geometries.append(new_geom)
-                
-                        if not new_geom.is_empty:
-                            accumulated_geom = accumulated_geom.union(new_geom)
-                
-                    master_distress["geometry"] = cleaned_geometries
-                    master_distress = master_distress[~master_distress.geometry.is_empty]
-                
-                    # Overlay dengan segmen jalan
-                    inter_all = gpd.overlay(master_distress, seg_gdf, how="intersection")
-                
-                    if not inter_all.empty:
-                
-                        inter_all["Area_Intersect"] = inter_all.geometry.area
-                
-                        agg_df = (
-                            inter_all
-                            .groupby(
-                                ['Segmen', 'Distress_Type', 'Severity', 'Unit_Area']
-                            )['Area_Intersect']
-                            .sum()
-                            .reset_index()
+                    
+                            cleaned_layers.append(gdf)
+                    
+                        # Gabungkan semua distress menjadi satu GeoDataFrame
+                        master_distress = gpd.GeoDataFrame(
+                            pd.concat(cleaned_layers, ignore_index=True),
+                            geometry="geometry",
+                            crs=seg_gdf.crs
                         )
-                
-                        for _, row in agg_df.iterrows():
-                
-                            density = max(
-                                0,
-                                min(100,
-                                    (row['Area_Intersect'] / row['Unit_Area']) * 100
+                    
+                        # Urutkan berdasarkan prioritas (High dulu)
+                        master_distress = master_distress.sort_values(
+                            by="Priority",
+                            ascending=False
+                        ).reset_index(drop=True)
+                    
+                        # Hilangkan overlap berdasarkan prioritas
+                        accumulated_geom = Polygon()
+                        cleaned_geometries = []
+                    
+                        for _, row in master_distress.iterrows():
+                            geom = row.geometry
+                    
+                            if geom.is_empty:
+                                cleaned_geometries.append(geom)
+                                continue
+                    
+                            new_geom = geom.difference(accumulated_geom)
+                    
+                            cleaned_geometries.append(new_geom)
+                    
+                            if not new_geom.is_empty:
+                                accumulated_geom = accumulated_geom.union(new_geom)
+                    
+                        master_distress["geometry"] = cleaned_geometries
+                        master_distress = master_distress[~master_distress.geometry.is_empty]
+                    
+                        # Overlay dengan segmen jalan
+                        inter_all = gpd.overlay(master_distress, seg_gdf, how="intersection")
+                    
+                        if not inter_all.empty:
+                    
+                            inter_all["Area_Intersect"] = inter_all.geometry.area
+                    
+                            agg_df = (
+                                inter_all
+                                .groupby(
+                                    ['Segmen', 'Distress_Type', 'Severity', 'Unit_Area']
+                                )['Area_Intersect']
+                                .sum()
+                                .reset_index()
+                            )
+                    
+                            for _, row in agg_df.iterrows():
+                    
+                                density = max(
+                                    0,
+                                    min(100,
+                                        (row['Area_Intersect'] / row['Unit_Area']) * 100
+                                    )
                                 )
-                            )
-                
-                            dv = lookup_dv(
-                                row['Distress_Type'],
-                                row['Severity'],
-                                density
-                            )
-                
-                            df_detail_list.append({
-                                "Segmen": row["Segmen"],
-                                "Distress": row["Distress_Type"],
-                                "Severity": row["Severity"],
-                                "Density": density,
-                                "DV": dv
-                            })
-                
-                # SELALU definisikan df_detail (walaupun kosong)
-                df_detail = pd.DataFrame(df_detail_list)
-                
-                if df_detail.empty:
-                    df_detail = pd.DataFrame(columns=[
-                        "Segmen",
-                        "Distress",
-                        "Severity",
-                        "Density",
-                        "DV"
-                    ])
+                    
+                                dv = lookup_dv(
+                                    row['Distress_Type'],
+                                    row['Severity'],
+                                    density
+                                )
+                    
+                                df_detail_list.append({
+                                    "Segmen": row["Segmen"],
+                                    "Distress": row["Distress_Type"],
+                                    "Severity": row["Severity"],
+                                    "Density": density,
+                                    "DV": dv
+                                })
+                    
+                    # SELALU definisikan df_detail (walaupun kosong)
+                    df_detail = pd.DataFrame(df_detail_list)
+                    
+                    if df_detail.empty:
+                        df_detail = pd.DataFrame(columns=[
+                            "Segmen",
+                            "Distress",
+                            "Severity",
+                            "Density",
+                            "DV"
+                        ])
                     
                     # 5. HITUNG PCI
                     df_pci_list = []
@@ -633,5 +633,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
 
                 except Exception as e:
                     st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+
 
 
