@@ -31,6 +31,23 @@ st.markdown("Otomatisasi perhitungan Pavement Condition Index (PCI) metode ASTM 
 
 st.divider()
 
+# =========================================
+# INISIALISASI MEMORI (SESSION STATE)
+# =========================================
+# Ini agar Streamlit tidak lupa hasil proses saat dropdown diklik
+if 'proses_selesai' not in st.session_state:
+    st.session_state.proses_selesai = False
+if 'df_pci' not in st.session_state:
+    st.session_state.df_pci = None
+if 'df_detail' not in st.session_state:
+    st.session_state.df_detail = None
+if 'peta_bytes' not in st.session_state:
+    st.session_state.peta_bytes = None
+if 'grafik_bytes' not in st.session_state:
+    st.session_state.grafik_bytes = None
+if 'pdf_bytes' not in st.session_state:
+    st.session_state.pdf_bytes = None
+
 # ==========================================================
 # DATABASE KURVA PCI (STANDAR POLINOMIAL ASTM)
 # ==========================================================
@@ -129,7 +146,6 @@ def hitung_diameter_pothole(gdf):
     gdf["DIAMETER_MM"] = diameter_list
     return gdf
 
-# --- Fungsi Hemat RAM DSM ---
 def hitung_depth(gdf, dsm_path, buffer_distance=0.3):
     with rasterio.open(dsm_path) as DSM:
         dsm_crs = DSM.crs
@@ -339,7 +355,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         if gdf.empty: continue
                         
                         gdf = gdf.copy()
-                        # Pastikan CRS disamakan sedini mungkin
                         if gdf.crs is None:
                             gdf.set_crs(target_crs, inplace=True, allow_override=True)
                         elif gdf.crs != target_crs:
@@ -359,113 +374,50 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         
                         all_distress_list.append(gdf)
 
-                    # =========================================
                     # 4. OVERLAY & FLATTEN
-                    # =========================================
-                    
                     df_detail_list = []
                     
                     if all_distress_list:
-                    
-                        # Pastikan semua distress layer punya CRS identik dengan seg_gdf
                         cleaned_layers = []
                         for gdf in all_distress_list:
-                    
-                            if gdf.crs is None:
-                                gdf = gdf.set_crs(seg_gdf.crs, allow_override=True)
-                    
-                            elif gdf.crs != seg_gdf.crs:
+                            if gdf.crs != seg_gdf.crs:
                                 gdf = gdf.to_crs(seg_gdf.crs)
-                    
-                            # Paksa override supaya object CRS benar-benar identik
                             gdf = gdf.set_crs(seg_gdf.crs, allow_override=True)
-                    
                             cleaned_layers.append(gdf)
                     
-                        # Gabungkan semua distress menjadi satu GeoDataFrame
-                        master_distress = gpd.GeoDataFrame(
-                            pd.concat(cleaned_layers, ignore_index=True),
-                            geometry="geometry",
-                            crs=seg_gdf.crs
-                        )
+                        master_distress = gpd.GeoDataFrame(pd.concat(cleaned_layers, ignore_index=True), crs=seg_gdf.crs)
+                        master_distress = master_distress.sort_values(by="Priority", ascending=False).reset_index(drop=True)
                     
-                        # Urutkan berdasarkan prioritas (High dulu)
-                        master_distress = master_distress.sort_values(
-                            by="Priority",
-                            ascending=False
-                        ).reset_index(drop=True)
-                    
-                        # Hilangkan overlap berdasarkan prioritas
                         accumulated_geom = Polygon()
                         cleaned_geometries = []
                     
-                        for _, row in master_distress.iterrows():
+                        for idx, row in master_distress.iterrows():
                             geom = row.geometry
-                    
-                            if geom.is_empty:
-                                cleaned_geometries.append(geom)
-                                continue
-                    
-                            new_geom = geom.difference(accumulated_geom)
-                    
+                            new_geom = geom.difference(accumulated_geom) if not geom.is_empty else geom
                             cleaned_geometries.append(new_geom)
-                    
                             if not new_geom.is_empty:
                                 accumulated_geom = accumulated_geom.union(new_geom)
                     
                         master_distress["geometry"] = cleaned_geometries
                         master_distress = master_distress[~master_distress.geometry.is_empty]
-                    
-                        # Overlay dengan segmen jalan
                         inter_all = gpd.overlay(master_distress, seg_gdf, how="intersection")
                     
                         if not inter_all.empty:
-                    
                             inter_all["Area_Intersect"] = inter_all.geometry.area
-                    
-                            agg_df = (
-                                inter_all
-                                .groupby(
-                                    ['Segmen', 'Distress_Type', 'Severity', 'Unit_Area']
-                                )['Area_Intersect']
-                                .sum()
-                                .reset_index()
-                            )
+                            agg_df = inter_all.groupby(['Segmen', 'Distress_Type', 'Severity', 'Unit_Area'])['Area_Intersect'].sum().reset_index()
                     
                             for _, row in agg_df.iterrows():
-                    
-                                density = max(
-                                    0,
-                                    min(100,
-                                        (row['Area_Intersect'] / row['Unit_Area']) * 100
-                                    )
-                                )
-                    
-                                dv = lookup_dv(
-                                    row['Distress_Type'],
-                                    row['Severity'],
-                                    density
-                                )
-                    
+                                density = max(0, min(100, (row['Area_Intersect'] / row['Unit_Area']) * 100))
+                                dv = lookup_dv(row['Distress_Type'], row['Severity'], density)
                                 df_detail_list.append({
                                     "Segmen": row["Segmen"],
-                                    "Distress": row["Distress_Type"],
+                                    "Distress": row['Distress_Type'],
                                     "Severity": row["Severity"],
                                     "Density": density,
                                     "DV": dv
                                 })
-                    
-                    # SELALU definisikan df_detail (walaupun kosong)
+
                     df_detail = pd.DataFrame(df_detail_list)
-                    
-                    if df_detail.empty:
-                        df_detail = pd.DataFrame(columns=[
-                            "Segmen",
-                            "Distress",
-                            "Severity",
-                            "Density",
-                            "DV"
-                        ])
                     
                     # 5. HITUNG PCI
                     df_pci_list = []
@@ -505,7 +457,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     df_pci["Rating"] = df_pci["PCI"].apply(rating_pci)
                     df_pci["STA"] = df_pci["Segmen"].apply(lambda x: f"{(x-1)*interval_segmen} - {x*interval_segmen} m")
                     
-                    # Merge ke Peta
                     seg_gdf = seg_gdf.merge(df_pci, on="Segmen", how="left")
                     seg_gdf["PCI"] = seg_gdf["PCI"].fillna(100)
                     seg_gdf["Rating"] = seg_gdf["Rating"].fillna("Good")
@@ -515,7 +466,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     # =========================================
                     warna_pci = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
                     
-                    # Peta
                     fig_map, ax_map = plt.subplots(figsize=(10,6))
                     seg_plot = seg_gdf.copy()
                     seg_plot["geometry"] = seg_plot.geometry.buffer(4)
@@ -528,7 +478,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     plt.savefig(peta_path, dpi=300, bbox_inches='tight')
                     plt.close(fig_map)
                     
-                    # Grafik
                     fig_bar, ax_bar = plt.subplots(figsize=(6,4))
                     rekap = seg_gdf["Rating"].value_counts()
                     warna_bar = [warna_pci.get(x, "grey") for x in rekap.index]
@@ -540,14 +489,13 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     plt.close(fig_bar)
                     
                     # =========================================
-                    # PEMBUATAN PDF DASHBOARD
+                    # PEMBUATAN PDF
                     # =========================================
                     pdf_path = os.path.join(tmpdir, "Laporan_PCI.pdf")
                     doc = SimpleDocTemplate(pdf_path, pagesize=pagesizes.landscape(pagesizes.A4))
                     elements = []
                     styles = getSampleStyleSheet()
                     
-                    # Cover & Info
                     elements.append(Paragraph(f"<font size=18><b>{instansi}</b></font>", ParagraphStyle('Title', alignment=TA_CENTER)))
                     elements.append(Spacer(1, 0.5*inch))
                     elements.append(Paragraph("<font size=24>LAPORAN SURVEY PAVEMENT CONDITION INDEX (PCI)</font>", ParagraphStyle('Title', alignment=TA_CENTER)))
@@ -556,12 +504,10 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     elements.append(Paragraph(f"<b>Surveyor :</b> {surveyor} | <b>Tanggal :</b> {tanggal}", styles["Normal"]))
                     elements.append(PageBreak())
                     
-                    # Peta & Chart di PDF
                     elements.append(Paragraph("<b>HASIL ANALISIS KONDISI JALAN</b>", styles["Heading2"]))
                     elements.append(Image(peta_path, width=7.5*inch, height=4.5*inch))
                     elements.append(PageBreak())
                     
-                    # Lampiran Per Segmen
                     for idx, seg in df_pci.sort_values('Segmen').reset_index(drop=True).iterrows():
                         if idx > 0: elements.append(PageBreak())
                         seg_id = seg["Segmen"]
@@ -591,7 +537,6 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         elements.append(t_d)
                         elements.append(Spacer(1, 0.2*inch))
                         
-                        # Sub table B & C
                         bg_color = warna_pci.get(seg['Rating'], "#FFFFFF")
                         txt_color = colors.black if seg['Rating'] in ["Satisfactory", "Fair", "Good"] else colors.white
                         t_sub = Table([["HDV", "m (Max Allowable)", "Max CDV", "PCI", "Rating (ASTM)"],
@@ -603,112 +548,111 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     doc.build(elements)
                     
                     # =========================================
-                    # TAMPILKAN HASIL DI WEB (STREAMLIT)
+                    # SIMPAN KE SESSION STATE SEBELUM TEMP DIHAPUS
                     # =========================================
-                    st.success("✅ Analisis Berhasil!")
+                    st.session_state.df_pci = df_pci
+                    st.session_state.df_detail = df_detail
                     
-                    col_res1, col_res2 = st.columns([2, 1])
-                    with col_res1:
-                        st.subheader("Peta Kondisi PCI")
-                        st.image(peta_path)
-                    with col_res2:
-                        st.subheader("Distribusi")
-                        st.image(grafik_path)
-                        st.metric("Rata-rata PCI", round(df_pci["PCI"].mean(), 2))
-                    
-                    st.subheader("Tabel Rekapitulasi Umum")
-                    st.dataframe(df_pci[["Segmen", "STA", "TDV", "CDV", "PCI", "Rating"]], use_container_width=True)
-
-                    # =========================================
-                    # FITUR BARU: DASHBOARD DETAIL PER SEGMEN
-                    # =========================================
-                    st.markdown("---")
-                    st.subheader("🔎 Dashboard Detail Per Segmen")
-                    st.markdown("Pilih nomor segmen di bawah ini untuk melihat rincian perhitungan setara lembar kerja ASTM.")
-
-                    # Membuat Dropdown Pilihan Segmen
-                    list_segmen = df_pci["Segmen"].tolist()
-                    pilihan_segmen = st.selectbox("Pilih Segmen:", list_segmen)
-
-                    if pilihan_segmen:
-                        # Ambil data spesifik sesuai segmen yang dipilih
-                        seg_data = df_pci[df_pci["Segmen"] == pilihan_segmen].iloc[0]
-                        df_seg_detail = df_detail[df_detail["Segmen"] == pilihan_segmen]
-
-                        # Hitung ulang HDV dan m untuk ditampilkan
-                        hdv_val = df_seg_detail["DV"].max() if not df_seg_detail.empty else 0.0
-                        m_val = min(1 + (9.0 / 95.0) * (100.0 - hdv_val), 10.0) if hdv_val > 0 else 0.0
-
-                        st.markdown(f"#### REPORT SEGMEN : {pilihan_segmen} (STA: {seg_data['STA']})")
-
-                        # TABEL A: Data Sheet
-                        st.markdown("**A. Flexible Pavement Condition Data Sheet**")
-                        if df_seg_detail.empty:
-                            st.info("✅ Tidak ada kerusakan pada segmen ini.")
-                        else:
-                            display_df = df_seg_detail.copy()
-                            # Rapikan nama kerusakan
-                            display_df["Distress Type"] = display_df["Distress"].str.replace("_", " ").str.title()
-                            # Hitung luasan dari density
-                            display_df["Quantity (sq.m)"] = (display_df["Density"] / 100.0) * (interval_segmen * lebar_jalan)
-                            
-                            # Pilih dan ubah nama kolom agar rapi
-                            display_df = display_df[["Distress Type", "Severity", "Quantity (sq.m)", "Density", "DV"]]
-                            display_df.rename(columns={"Density": "Density (%)", "DV": "Deduct Value (DV)"}, inplace=True)
-                            
-                            # Tampilkan tabel tanpa index dan dengan format desimal yang rapi
-                            st.table(display_df.style.format({
-                                "Quantity (sq.m)": "{:.2f}", 
-                                "Density (%)": "{:.2f}", 
-                                "Deduct Value (DV)": "{:.2f}"
-                            }))
-
-                        # TABEL B: Nilai m
-                        st.markdown("**B. Maximum allowable number of distresses (m)**")
-                        col_b1, col_b2 = st.columns(2)
-                        with col_b1:
-                            st.info(f"**Highest Deduct Value (HDV):** {hdv_val:.2f}")
-                        with col_b2:
-                            st.info(f"**m = 1 + (9/95)*(100 - HDV) ≤ 10:** {m_val:.2f}")
-
-                        # TABEL C: Hasil PCI & Rating (Dengan pewarnaan persis PDF)
-                        st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
-                        col_c1, col_c2, col_c3 = st.columns(3)
-                        with col_c1:
-                            st.info(f"**Max_CDV:** {seg_data['CDV']:.2f}")
-                        with col_c2:
-                            st.info(f"**PCI = 100 - Max_CDV:** {seg_data['PCI']:.2f}")
-                        with col_c3:
-                            # Logika pewarnaan background dan teks kotak rating
-                            bg_col = warna_pci.get(seg_data['Rating'], "#FFFFFF")
-                            txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
-                            
-                            html_rating = f"""
-                            <div style='background-color: {bg_col}; color: {txt_col}; text-align: center; padding: 15px; border-radius: 5px; font-weight: bold; border: 1px solid #ccc;'>
-                                Rating (ASTM): {seg_data['Rating']}
-                            </div>
-                            """
-                            st.markdown(html_rating, unsafe_allow_html=True)
-
-                    st.markdown("---")
-
-                    # =========================================
-                    # TOMBOL DOWNLOAD PDF
-                    # =========================================
-                    with open(pdf_path, "rb") as pdf_file:
-                        pdf_bytes = pdf_file.read()
-
-                    st.download_button(
-                        label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
-                        data=pdf_bytes,
-                        file_name=f"PCI_{lokasi.replace(' ', '_')}.pdf",
-                        mime="application/pdf",
-                        type="primary"
-                    )
+                    with open(peta_path, "rb") as f:
+                        st.session_state.peta_bytes = f.read()
+                    with open(grafik_path, "rb") as f:
+                        st.session_state.grafik_bytes = f.read()
+                    with open(pdf_path, "rb") as f:
+                        st.session_state.pdf_bytes = f.read()
+                        
+                    # Beri tanda bahwa proses sudah 100% komplit
+                    st.session_state.proses_selesai = True
 
                 except Exception as e:
                     st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+                    st.session_state.proses_selesai = False
 
+# =========================================
+# TAMPILKAN HASIL DI WEB (DARI SESSION STATE)
+# =========================================
+# Bagian ini di luar blok tombol "Proses" agar tidak hilang saat dropdown diklik
+if st.session_state.proses_selesai:
+    st.success("✅ Analisis Berhasil!")
+    
+    col_res1, col_res2 = st.columns([2, 1])
+    with col_res1:
+        st.subheader("Peta Kondisi PCI")
+        st.image(st.session_state.peta_bytes)
+    with col_res2:
+        st.subheader("Distribusi")
+        st.image(st.session_state.grafik_bytes)
+        st.metric("Rata-rata PCI", round(st.session_state.df_pci["PCI"].mean(), 2))
+    
+    st.subheader("Tabel Rekapitulasi Umum")
+    st.dataframe(st.session_state.df_pci[["Segmen", "STA", "TDV", "CDV", "PCI", "Rating"]], use_container_width=True)
 
+    # =========================================
+    # FITUR DASHBOARD DETAIL PER SEGMEN
+    # =========================================
+    st.markdown("---")
+    st.subheader("🔎 Dashboard Detail Per Segmen")
+    st.markdown("Pilih nomor segmen di bawah ini untuk melihat rincian perhitungan setara lembar kerja ASTM.")
 
+    # Dropdown memilih segmen
+    list_segmen = st.session_state.df_pci["Segmen"].tolist()
+    pilihan_segmen = st.selectbox("Pilih Segmen:", list_segmen)
 
+    if pilihan_segmen:
+        # Ambil memori
+        df_pci_mem = st.session_state.df_pci
+        df_det_mem = st.session_state.df_detail
+
+        # Ambil data spesifik
+        seg_data = df_pci_mem[df_pci_mem["Segmen"] == pilihan_segmen].iloc[0]
+        df_seg_detail = df_det_mem[df_det_mem["Segmen"] == pilihan_segmen]
+
+        # Hitung HDV dan m
+        hdv_val = df_seg_detail["DV"].max() if not df_seg_detail.empty else 0.0
+        m_val = min(1 + (9.0 / 95.0) * (100.0 - hdv_val), 10.0) if hdv_val > 0 else 0.0
+
+        st.markdown(f"#### REPORT SEGMEN : {pilihan_segmen} (STA: {seg_data['STA']})")
+
+        # TABEL A
+        st.markdown("**A. Flexible Pavement Condition Data Sheet**")
+        if df_seg_detail.empty:
+            st.info("✅ Tidak ada kerusakan pada segmen ini.")
+        else:
+            display_df = df_seg_detail.copy()
+            display_df["Distress Type"] = display_df["Distress"].str.replace("_", " ").str.title()
+            display_df["Quantity (sq.m)"] = (display_df["Density"] / 100.0) * (interval_segmen * lebar_jalan)
+            display_df = display_df[["Distress Type", "Severity", "Quantity (sq.m)", "Density", "DV"]]
+            display_df.rename(columns={"Density": "Density (%)", "DV": "Deduct Value (DV)"}, inplace=True)
+            st.table(display_df.style.format({"Quantity (sq.m)": "{:.2f}", "Density (%)": "{:.2f}", "Deduct Value (DV)": "{:.2f}"}))
+
+        # TABEL B
+        st.markdown("**B. Maximum allowable number of distresses (m)**")
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            st.info(f"**Highest Deduct Value (HDV):** {hdv_val:.2f}")
+        with col_b2:
+            st.info(f"**m = 1 + (9/95)*(100 - HDV) ≤ 10:** {m_val:.2f}")
+
+        # TABEL C
+        warna_pci_dict = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
+        st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
+        col_c1, col_c2, col_c3 = st.columns(3)
+        with col_c1:
+            st.info(f"**Max_CDV:** {seg_data['CDV']:.2f}")
+        with col_c2:
+            st.info(f"**PCI = 100 - Max_CDV:** {seg_data['PCI']:.2f}")
+        with col_c3:
+            bg_col = warna_pci_dict.get(seg_data['Rating'], "#FFFFFF")
+            txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
+            html_rating = f"""<div style='background-color: {bg_col}; color: {txt_col}; text-align: center; padding: 15px; border-radius: 5px; font-weight: bold; border: 1px solid #ccc;'>Rating (ASTM): {seg_data['Rating']}</div>"""
+            st.markdown(html_rating, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # Tombol Download PDF
+    st.download_button(
+        label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
+        data=st.session_state.pdf_bytes,
+        file_name=f"PCI_{lokasi.replace(' ', '_')}.pdf",
+        mime="application/pdf",
+        type="primary"
+    )
