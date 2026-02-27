@@ -604,7 +604,7 @@ if st.session_state.proses_selesai:
     st.markdown("---")
     
     # -----------------------------------------------------
-    # FITUR BARU: SKALA RATING & TABEL REKAPITULASI
+    # FITUR BARU: SKALA RATING & TABEL REKAPITULASI (DIPERBAIKI)
     # -----------------------------------------------------
     col_tab, col_leg = st.columns([2, 1])
     
@@ -618,54 +618,28 @@ if st.session_state.proses_selesai:
         )
 
     with col_leg:
-        # Membuat HTML Custom untuk Skala PCI persis seperti referensi
-        pci_scale_html = """
-        <div style="font-family: sans-serif; max-width: 100%; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #f9f9f9;">
-            <h4 style="text-align: center; margin-top: 0px; margin-bottom: 15px; color: #333;">Skala Rating PCI</h4>
-            
-            <div style="display: flex; align-items: center; margin-bottom: 2px;">
-                <div style="flex-grow: 1; background-color: #006400; color: white; text-align: center; padding: 8px; font-weight: bold;">Good</div>
-                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">100</div>
+        # Menggunakan format st.markdown yang lebih aman dan rapi
+        st.markdown("<h4 style='text-align: center; margin-bottom: 15px;'>Skala Rating PCI</h4>", unsafe_allow_html=True)
+        
+        skala_pci = [
+            ("Good", "#006400", "white", "85 - 100"),
+            ("Satisfactory", "#8FBC8F", "black", "70 - 85"),
+            ("Fair", "#FFFF00", "black", "55 - 70"),
+            ("Poor", "#FF6347", "white", "40 - 55"),
+            ("Very Poor", "#FF4500", "white", "25 - 40"),
+            ("Serious", "#8B0000", "white", "10 - 25"),
+            ("Failed", "#A9A9A9", "black", "0 - 10")
+        ]
+        
+        for nama, bg, txt, rentang in skala_pci:
+            # HTML dipecah per baris agar tidak error saat dibaca Streamlit
+            html_baris = f"""
+            <div style='background-color: {bg}; color: {txt}; padding: 10px; margin-bottom: 5px; border-radius: 5px; display: flex; justify-content: space-between; font-weight: bold;'>
+                <span>{nama}</span>
+                <span>{rentang}</span>
             </div>
-            
-            <div style="display: flex; align-items: center; margin-bottom: 2px;">
-                <div style="flex-grow: 1; background-color: #8FBC8F; color: black; text-align: center; padding: 8px; font-weight: bold;">Satisfactory</div>
-                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">85</div>
-            </div>
-            
-            <div style="display: flex; align-items: center; margin-bottom: 2px;">
-                <div style="flex-grow: 1; background-color: #FFFF00; color: black; text-align: center; padding: 8px; font-weight: bold;">Fair</div>
-                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">70</div>
-            </div>
-            
-            <div style="display: flex; align-items: center; margin-bottom: 2px;">
-                <div style="flex-grow: 1; background-color: #FF6347; color: white; text-align: center; padding: 8px; font-weight: bold;">Poor</div>
-                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">55</div>
-            </div>
-            
-            <div style="display: flex; align-items: center; margin-bottom: 2px;">
-                <div style="flex-grow: 1; background-color: #FF4500; color: white; text-align: center; padding: 8px; font-weight: bold;">Very Poor</div>
-                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">40</div>
-            </div>
-            
-            <div style="display: flex; align-items: center; margin-bottom: 2px;">
-                <div style="flex-grow: 1; background-color: #8B0000; color: white; text-align: center; padding: 8px; font-weight: bold;">Serious</div>
-                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">25</div>
-            </div>
-            
-            <div style="display: flex; align-items: center; margin-bottom: 2px;">
-                <div style="flex-grow: 1; background-color: #A9A9A9; color: black; text-align: center; padding: 8px; font-weight: bold;">Failed</div>
-                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">10</div>
-            </div>
-            
-            <div style="display: flex; align-items: center;">
-                <div style="flex-grow: 1;"></div>
-                <div style="width: 40px; text-align: right; font-weight: bold; color: #333;">0</div>
-            </div>
-        </div>
-        """
-        st.markdown(pci_scale_html, unsafe_allow_html=True)
-
+            """
+            st.markdown(html_baris, unsafe_allow_html=True)
 
     # =========================================
     # FITUR DASHBOARD DETAIL PER SEGMEN
