@@ -46,6 +46,8 @@ if 'grafik_bytes' not in st.session_state:
     st.session_state.grafik_bytes = None
 if 'pdf_bytes' not in st.session_state:
     st.session_state.pdf_bytes = None
+if 'gpkg_bytes' not in st.session_state: # <--- TAMBAHKAN BARIS INI
+    st.session_state.gpkg_bytes = None   # <--- TAMBAHKAN BARIS INI
 
 # ==========================================================
 # DATABASE KURVA PCI (STANDAR POLINOMIAL ASTM)
@@ -696,7 +698,36 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         elements.append(t_c)
 
                     doc.build(elements)
+
+                    # =========================================
+                    # PEMBUATAN FILE SPASIAL (GPKG)
+                    # =========================================
+                    gpkg_path = os.path.join(tmpdir, "Peta_Hasil_PCI.gpkg")
+                    export_gdf = seg_gdf.copy()
                     
+                    # Bersihkan tipe data yang tidak didukung oleh file spasial (seperti list/tuple)
+                    for col in export_gdf.columns:
+                        if export_gdf[col].apply(lambda x: isinstance(x, (list, tuple))).any():
+                            export_gdf[col] = export_gdf[col].astype(str)
+                            
+                    # Export ke GeoPackage
+                    export_gdf.to_file(gpkg_path, driver="GPKG")
+
+                    # =========================================
+                    # SIMPAN KE SESSION STATE SEBELUM TEMP DIHAPUS
+                    # =========================================
+                    st.session_state.df_pci = df_pci
+                    st.session_state.df_detail = df_detail
+                    
+                    with open(peta_path, "rb") as f:
+                        st.session_state.peta_bytes = f.read()
+                    with open(grafik_path, "rb") as f:
+                        st.session_state.grafik_bytes = f.read()
+                    with open(pdf_path, "rb") as f:
+                        st.session_state.pdf_bytes = f.read()
+                    with open(gpkg_path, "rb") as f:                
+                        st.session_state.gpkg_bytes = f.read()       
+                        
                     # =========================================
                     # SIMPAN KE SESSION STATE SEBELUM TEMP DIHAPUS
                     # =========================================
@@ -847,5 +878,6 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
 
 
