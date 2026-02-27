@@ -361,48 +361,77 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
 
                     # 4. OVERLAY & FLATTEN
                     df_detail_list = []
+                    
                     if all_distress_list:
-                        # =======================================================
-                        # ULTIMATE BYPASS CRS STRICTNESS GEOPANDAS
-                        # =======================================================
-                        # Kita ekstrak poligonnya menjadi array murni (tanpa embel-embel CRS),
-                        # lalu gabungkan sebagai data tabel biasa, dan baru diubah kembali ke peta.
-                        pure_dfs = []
-                        for g in all_distress_list:
-                            df_temp = pd.DataFrame(g.drop(columns=["geometry"]))
-                            df_temp["geometry"] = g.geometry.values
-                            pure_dfs.append(df_temp)
-                            
-                        master_distress_df = pd.concat(pure_dfs, ignore_index=True)
-                        master_distress = gpd.GeoDataFrame(master_distress_df, geometry="geometry", crs=target_crs)
-                        # =======================================================
-                        
-                        master_distress = master_distress.sort_values(by="Priority", ascending=False).reset_index(drop=True)
-                        
+                    
+                        # Pastikan semua layer pakai CRS persis sama dengan seg_gdf
+                        cleaned_layers = []
+                        for gdf in all_distress_list:
+                            if gdf.crs != seg_gdf.crs:
+                                gdf = gdf.to_crs(seg_gdf.crs)
+                    
+                            # Force set CRS agar identik object-nya
+                            gdf = gdf.set_crs(seg_gdf.crs, allow_override=True)
+                    
+                            cleaned_layers.append(gdf)
+                    
+                        # Concat langsung sebagai GeoDataFrame
+                        master_distress = gpd.GeoDataFrame(
+                            pd.concat(cleaned_layers, ignore_index=True),
+                            crs=seg_gdf.crs
+                        )
+                    
+                        master_distress = master_distress.sort_values(
+                            by="Priority", ascending=False
+                        ).reset_index(drop=True)
+                    
                         accumulated_geom = Polygon()
                         cleaned_geometries = []
+                    
                         for idx, row in master_distress.iterrows():
                             geom = row.geometry
                             new_geom = geom.difference(accumulated_geom) if not geom.is_empty else geom
                             cleaned_geometries.append(new_geom)
-                            if not new_geom.is_empty: accumulated_geom = accumulated_geom.union(new_geom)
-                            
+                    
+                            if not new_geom.is_empty:
+                                accumulated_geom = accumulated_geom.union(new_geom)
+                    
                         master_distress["geometry"] = cleaned_geometries
                         master_distress = master_distress[~master_distress.geometry.is_empty]
-                        
+                    
+                        # Overlay ke segmen
                         inter_all = gpd.overlay(master_distress, seg_gdf, how="intersection")
+                    
                         if not inter_all.empty:
                             inter_all["Area_Intersect"] = inter_all.geometry.area
-                            agg_df = inter_all.groupby(['Segmen', 'Distress_Type', 'Severity', 'Unit_Area'])['Area_Intersect'].sum().reset_index()
-                            for _, row in agg_df.iterrows():
-                                density = max(0, min(100, (row['Area_Intersect'] / row['Unit_Area']) * 100))
-                                dv = lookup_dv(row['Distress_Type'], row['Severity'], density)
-                                df_detail_list.append({
-                                    "Segmen": row["Segmen"], "Distress": row['Distress_Type'], 
-                                    "Severity": row["Severity"], "Density": density, "DV": dv
-                                })
                     
-                    df_detail = pd.DataFrame(df_detail_list)
+                            agg_df = (
+                                inter_all
+                                .groupby(['Segmen', 'Distress_Type', 'Severity', 'Unit_Area'])
+                                ['Area_Intersect']
+                                .sum()
+                                .reset_index()
+                            )
+                    
+                            for _, row in agg_df.iterrows():
+                                density = max(
+                                    0,
+                                    min(100, (row['Area_Intersect'] / row['Unit_Area']) * 100)
+                                )
+                    
+                                dv = lookup_dv(
+                                    row['Distress_Type'],
+                                    row['Severity'],
+                                    density
+                                )
+                    
+                                df_detail_list.append({
+                                    "Segmen": row["Segmen"],
+                                    "Distress": row['Distress_Type'],
+                                    "Severity": row["Severity"],
+                                    "Density": density,
+                                    "DV": dv
+                                })
                     
                     # 5. HITUNG PCI
                     df_pci_list = []
@@ -570,3 +599,4 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
 
                 except Exception as e:
                     st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+
