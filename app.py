@@ -507,62 +507,194 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     plt.close(fig_bar)
                     
                     # =========================================
-                    # PEMBUATAN PDF
+                    # PEMBUATAN PDF (GAYA DASHBOARD)
                     # =========================================
                     pdf_path = os.path.join(tmpdir, "Laporan_PCI.pdf")
-                    doc = SimpleDocTemplate(pdf_path, pagesize=pagesizes.landscape(pagesizes.A4))
+                    doc = SimpleDocTemplate(pdf_path, pagesize=pagesizes.landscape(pagesizes.A4),
+                                            rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
                     elements = []
                     styles = getSampleStyleSheet()
                     
-                    elements.append(Paragraph(f"<font size=18><b>{instansi}</b></font>", ParagraphStyle('Title', alignment=TA_CENTER)))
-                    elements.append(Spacer(1, 0.5*inch))
-                    elements.append(Paragraph("<font size=24>LAPORAN SURVEY PAVEMENT CONDITION INDEX (PCI)</font>", ParagraphStyle('Title', alignment=TA_CENTER)))
-                    elements.append(Spacer(1, 0.5*inch))
-                    elements.append(Paragraph(f"<b>Lokasi :</b> {lokasi} | <b>STA :</b> {sta_umum}", styles["Normal"]))
-                    elements.append(Paragraph(f"<b>Surveyor :</b> {surveyor} | <b>Tanggal :</b> {tanggal}", styles["Normal"]))
-                    elements.append(PageBreak())
+                    cover_style = ParagraphStyle('cover', parent=styles['Title'], alignment=TA_CENTER)
+                    header_style = ParagraphStyle('header', parent=styles['Normal'], alignment=TA_LEFT, fontSize=12, spaceAfter=10, textColor=colors.HexColor("#1f2937"))
                     
-                    elements.append(Paragraph("<b>HASIL ANALISIS KONDISI JALAN</b>", styles["Heading2"]))
-                    elements.append(Image(peta_path, width=7.5*inch, height=4.5*inch))
+                    # --- STATISTIK UMUM ---
+                    if len(seg_gdf) > 0:
+                        total_area = seg_gdf["Unit_Area"].sum()
+                        rata_pci = round((seg_gdf["PCI"] * seg_gdf["Unit_Area"]).sum() / total_area, 2)
+                    else:
+                        rata_pci = 0
+                    kondisi_dominan = seg_gdf["Rating"].value_counts().idxmax() if not seg_gdf["Rating"].empty else "-"
+
+                    # --- COVER ---
+                    elements.append(Paragraph(instansi, cover_style))
+                    elements.append(Spacer(1, 0.3*inch))
+                    elements.append(Paragraph("LAPORAN SURVEY", cover_style))
+                    elements.append(Spacer(1, 0.3*inch))
+                    elements.append(Paragraph("PAVEMENT CONDITION INDEX (PCI)", cover_style))
+                    elements.append(Spacer(1, 1*inch))
+                    elements.append(Paragraph(f"<b>Lokasi :</b> {lokasi}", styles["Normal"]))
+                    elements.append(Paragraph(f"<b>STA :</b> {sta_umum}", styles["Normal"]))
+                    elements.append(Paragraph(f"<b>Surveyor :</b> {surveyor}", styles["Normal"]))
+                    elements.append(Paragraph(f"<b>Tanggal :</b> {tanggal}", styles["Normal"]))
                     elements.append(PageBreak())
-                    
+
+                    # --- 1. RINGKASAN REKAPITULASI UMUM ---
+                    elements.append(Paragraph("<b>1. Tabel Rekapitulasi Umum</b>", styles["Heading2"]))
+                    ringkasan_table = Table([
+                        ["Lokasi", lokasi], ["STA", sta_umum], 
+                        ["Jumlah Segmen", str(len(seg_gdf))],
+                        ["Panjang Jalan Terukur", f"{len(seg_gdf)*interval_segmen} meter"],
+                        ["Rata-rata PCI Keseluruhan", f"{rata_pci}"], 
+                        ["Kondisi Dominan", kondisi_dominan]
+                    ], colWidths=[200, 400])
+                    ringkasan_table.setStyle(TableStyle([
+                        ('GRID',(0,0),(-1,-1),0.5,colors.grey), 
+                        ('BACKGROUND',(0,0),(0,-1),colors.HexColor("#f3f4f6")), 
+                        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+                        ('PADDING', (0,0), (-1,-1), 8)
+                    ]))
+                    elements.append(ringkasan_table)
+                    elements.append(Spacer(1, 0.3 * inch))
+
+                    # --- 2. GRAFIK DISTRIBUSI ---
+                    elements.append(Paragraph("<b>2. Grafik Distribusi PCI</b>", styles["Heading2"]))
+                    elements.append(Image(grafik_path, width=6.5*inch, height=3.5*inch))
+                    elements.append(PageBreak())
+
+                    # --- 3. PETA KONDISI ---
+                    elements.append(Paragraph("<b>3. Peta Kondisi Jalan</b>", styles["Heading2"]))
+                    elements.append(Spacer(1, 0.2 * inch))
+                    elements.append(Image(peta_path, width=9.5*inch, height=5.5*inch))
+                    elements.append(PageBreak())
+
+                    # --- 4. SKALA RATING ---
+                    elements.append(Paragraph("<b>4. Skala Rating PCI (ASTM D6433)</b>", styles["Heading2"]))
+                    skala_data = [
+                        ["Rating", "Range PCI", "Warna Indikator"],
+                        ["Good", "86 - 100", ""],
+                        ["Satisfactory", "71 - 85", ""],
+                        ["Fair", "56 - 70", ""],
+                        ["Poor", "41 - 55", ""],
+                        ["Very Poor", "26 - 40", ""],
+                        ["Serious", "11 - 25", ""],
+                        ["Failed", "0 - 10", ""]
+                    ]
+                    t_skala = Table(skala_data, colWidths=[150, 150, 200])
+                    t_skala_style = TableStyle([
+                        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#1f2937")),
+                        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                        ('PADDING', (0,0), (-1,-1), 8)
+                    ])
+                    for i, rating in enumerate(list(warna_pci.keys())):
+                        t_skala_style.add('BACKGROUND', (2, i+1), (2, i+1), colors.HexColor(warna_pci[rating]))
+                    t_skala.setStyle(t_skala_style)
+                    elements.append(t_skala)
+                    elements.append(PageBreak())
+
+                    # =====================================================
+                    # LAMPIRAN: DASHBOARD DATA SHEET PER SEGMEN
+                    # =====================================================
+                    elements.append(Paragraph("<b>LAMPIRAN: KERTAS KERJA PER SEGMEN</b>", styles["Heading1"]))
+                    elements.append(Spacer(1, 0.2*inch))
+
+                    COLOR_HEADER_BG = colors.HexColor("#1e293b")
+                    COLOR_HEADER_TXT = colors.white
+                    COLOR_CELL_BG = colors.HexColor("#f8fafc")
+
                     for idx, seg in df_pci.sort_values('Segmen').reset_index(drop=True).iterrows():
                         if idx > 0: elements.append(PageBreak())
+
                         seg_id = seg["Segmen"]
                         df_seg_detail = df_detail[df_detail["Segmen"] == seg_id] if not df_detail.empty else pd.DataFrame()
-                        
+
                         hdv_val = df_seg_detail["DV"].max() if not df_seg_detail.empty else 0.0
                         m_val = min(1 + (9.0 / 95.0) * (100.0 - hdv_val), 10.0) if hdv_val > 0 else 0.0
-                        
-                        elements.append(Paragraph(f"<b>REPORT SEGMEN : {seg_id} (STA: {seg['STA']})</b>", styles["Heading3"]))
-                        elements.append(Spacer(1, 0.1*inch))
-                        elements.append(Paragraph("<b>A. Flexible Pavement Condition Data Sheet</b>", styles["Normal"]))
-                        
-                        tabel_d_data = [["Distress Type", "Severity", "Quantity (sq.m)", "", "", "", "", "", "", "", "", "", "Total", "Density %", "DV"],
-                                        ["", "", "Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8", "Q9", "Q10", "", "", ""]]
+
+                        elements.append(Paragraph(f"<b>REPORT SEGMEN : {seg_id} (STA: {seg['STA']})</b>", styles["Heading2"]))
+                        elements.append(Spacer(1, 0.15*inch))
+
+                        # TABEL A
+                        elements.append(Paragraph("<b>A. Flexible Pavement Condition Data Sheet</b>", header_style))
+                        tabel_a_data = [["Distress Type", "Severity", "Quantity (sq.m)", "Density (%)", "Deduct Value (DV)"]]
                         if df_seg_detail.empty:
-                            tabel_d_data.append(["Tidak ada kerusakan", "-", "", "", "", "", "", "", "", "", "", "", "0.00", "0.00", "0.00"])
+                            tabel_a_data.append(["Tidak ada kerusakan", "-", "0.00", "0.00", "0.00"])
                         else:
                             for _, row in df_seg_detail.iterrows():
                                 clean_name = row["Distress"].replace("_", " ").title()
                                 tqty = (row["Density"] / 100.0) * (interval_segmen * lebar_jalan)
-                                tabel_d_data.append([clean_name, row["Severity"], f"{tqty:.2f}", "", "", "", "", "", "", "", "", "", f"{tqty:.2f}", f"{row['Density']:.2f}", f"{row['DV']:.2f}"])
-                        
-                        col_w_d = [2.2*inch, 0.7*inch] + [0.35*inch]*10 + [0.6*inch, 0.7*inch, 0.6*inch]
-                        t_d = Table(tabel_d_data, colWidths=col_w_d, repeatRows=2)
-                        t_d.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,1), colors.lightgrey), ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('FONTSIZE', (0,0), (-1,-1), 8),
-                                                 ('SPAN', (0,0), (0,1)), ('SPAN', (1,0), (1,1)), ('SPAN', (2,0), (11,0)), ('SPAN', (12,0), (12,1)), ('SPAN', (13,0), (13,1)), ('SPAN', (14,0), (14,1))]))
-                        elements.append(t_d)
-                        elements.append(Spacer(1, 0.2*inch))
-                        
-                        bg_color = warna_pci.get(seg['Rating'], "#FFFFFF")
-                        txt_color = colors.black if seg['Rating'] in ["Satisfactory", "Fair", "Good"] else colors.white
-                        t_sub = Table([["HDV", "m (Max Allowable)", "Max CDV", "PCI", "Rating (ASTM)"],
-                                       [f"{hdv_val:.2f}", f"{m_val:.2f}", f"{seg['CDV']:.2f}", f"{seg['PCI']:.2f}", seg['Rating']]], colWidths=[1.8*inch]*5)
-                        t_sub.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.lightgrey), ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                                                   ('BACKGROUND', (4,1), (4,1), colors.HexColor(bg_color)), ('TEXTCOLOR', (4,1), (4,1), txt_color), ('FONTNAME', (4,1), (4,1), 'Helvetica-Bold')]))
-                        elements.append(t_sub)
-                        
+                                tabel_a_data.append([clean_name, row["Severity"], f"{tqty:.2f}", f"{row['Density']:.2f}", f"{row['DV']:.2f}"])
+
+                        t_a = Table(tabel_a_data, colWidths=[3*inch, 1.5*inch, 1.5*inch, 1.5*inch, 2*inch])
+                        t_a.setStyle(TableStyle([
+                            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                            ('BACKGROUND', (0,0), (-1,0), COLOR_HEADER_BG),
+                            ('TEXTCOLOR', (0,0), (-1,0), COLOR_HEADER_TXT),
+                            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                            ('ALIGN', (0,1), (0,-1), 'LEFT'),
+                            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0,0), (-1,-1), 10),
+                            ('PADDING', (0,0), (-1,-1), 8),
+                            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, COLOR_CELL_BG])
+                        ]))
+                        elements.append(t_a)
+                        elements.append(Spacer(1, 0.3*inch))
+
+                        # TABEL B
+                        elements.append(Paragraph("<b>B. Maximum allowable number of distresses (m)</b>", header_style))
+                        tabel_b_data = [
+                            ["Highest Deduct Value (HDV)", "m = 1 + (9/95)*(100 - HDV) \u2264 10"],
+                            [f"{hdv_val:.2f}", f"{m_val:.2f}"]
+                        ]
+                        t_b = Table(tabel_b_data, colWidths=[4.75*inch, 4.75*inch])
+                        t_b.setStyle(TableStyle([
+                            ('BOX', (0,0), (-1,-1), 1, colors.lightgrey),
+                            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                            ('BACKGROUND', (0,0), (-1,0), COLOR_HEADER_BG),
+                            ('TEXTCOLOR', (0,0), (-1,0), COLOR_HEADER_TXT),
+                            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                            ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0,1), (-1,1), 16),
+                            ('PADDING', (0,0), (-1,-1), 12)
+                        ]))
+                        elements.append(t_b)
+                        elements.append(Spacer(1, 0.3*inch))
+
+                        # TABEL C
+                        elements.append(Paragraph("<b>C. Calculate Pavement Condition Index (PCI)</b>", header_style))
+                        pci_val = seg["PCI"]
+                        rating_astm = seg["Rating"]
+                        bg_astm_hex = warna_pci.get(rating_astm, "#FFFFFF")
+                        text_astm = colors.black if rating_astm in ["Satisfactory", "Fair", "Good"] else colors.white
+
+                        tabel_c_data = [
+                            ["Max_CDV", "PCI = 100 - Max_CDV", "Rating (ASTM)"],
+                            [f"{seg['CDV']:.2f}", f"{pci_val:.2f}", rating_astm]
+                        ]
+                        t_c = Table(tabel_c_data, colWidths=[3.16*inch, 3.16*inch, 3.18*inch])
+                        t_c.setStyle(TableStyle([
+                            ('BOX', (0,0), (-1,-1), 1, colors.lightgrey),
+                            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                            ('BACKGROUND', (0,0), (-1,0), COLOR_HEADER_BG),
+                            ('TEXTCOLOR', (0,0), (-1,0), COLOR_HEADER_TXT),
+                            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                            ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0,1), (1,1), 16),
+                            ('FONTSIZE', (2,1), (2,1), 14),
+                            ('PADDING', (0,0), (-1,-1), 12),
+                            ('BACKGROUND', (2,1), (2,1), colors.HexColor(bg_astm_hex)),
+                            ('TEXTCOLOR', (2,1), (2,1), text_astm)
+                        ]))
+                        elements.append(t_c)
+
                     doc.build(elements)
                     
                     # =========================================
@@ -715,3 +847,4 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
