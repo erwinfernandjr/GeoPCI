@@ -240,7 +240,18 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("📁 1. Data Dasar")
     jalan_file = st.file_uploader("Upload Shapefile Jalan (.zip)", type="zip")
-    dsm_file = st.file_uploader("Upload Data DSM (.tif)", type="tif")
+    
+    # --- FITUR BARU: OPSI INPUT DSM ---
+    dsm_mode = st.radio("Cara Input Data DSM:", ["Upload File .tif", "Paste Link Google Drive"])
+    
+    dsm_file = None
+    dsm_link = ""
+    
+    if dsm_mode == "Upload File .tif":
+        dsm_file = st.file_uploader("Upload Data DSM (.tif)", type="tif")
+    else:
+        dsm_link = st.text_input("Paste Link Shareable Google Drive (.tif)")
+        st.caption("Pastikan akses link Google Drive diatur ke 'Anyone with the link' (Siapa saja yang memiliki link).")
 
 with col2:
     st.subheader("⚠️ 2. Data Kerusakan (Distress)")
@@ -288,10 +299,32 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     seg_gdf["geometry"] = seg_gdf.buffer(lebar_jalan / 2, cap_style=2)
                     seg_gdf["Unit_Area"] = seg_gdf.geometry.area
                     
-                    # 2. SIMPAN DSM
+                    # 2. SIMPAN ATAU DOWNLOAD DSM
                     dsm_path = os.path.join(tmpdir, "dsm.tif")
-                    with open(dsm_path, "wb") as f:
-                        f.write(dsm_file.getbuffer())
+                    
+                    if dsm_mode == "Upload File .tif":
+                        if not dsm_file:
+                            st.error("⚠️ File DSM belum diupload!")
+                            st.stop()
+                        with open(dsm_path, "wb") as f:
+                            f.write(dsm_file.getbuffer())
+                            
+                    elif dsm_mode == "Paste Link Google Drive":
+                        if not dsm_link:
+                            st.error("⚠️ Link Google Drive belum diisi!")
+                            st.stop()
+                        
+                        st.info("⏳ Mengunduh DSM dari Google Drive... (Ini sangat cepat!)")
+                        import gdown
+                        import re
+                        # Mengekstrak ID dari link Google Drive
+                        match = re.search(r"/d/([a-zA-Z0-9_-]+)", dsm_link)
+                        if match:
+                            file_id = match.group(1)
+                            gdown.download(id=file_id, output=dsm_path, quiet=False)
+                        else:
+                            st.error("❌ Link Google Drive tidak valid. Pastikan format link benar.")
+                            st.stop()
 
                     # 3. BACA & PROSES DISTRESS
                     distress_layers = {}
@@ -517,4 +550,5 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     )
 
                 except Exception as e:
+
                     st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
