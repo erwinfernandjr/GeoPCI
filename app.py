@@ -870,14 +870,30 @@ if st.session_state.proses_selesai:
             st.markdown(metric_card("Rating (ASTM)", seg_data['Rating'], value_color=txt_col, bg_color=bg_col, text_color=txt_col), unsafe_allow_html=True)
 
     st.markdown("---")
+    st.subheader("💾 Download Hasil Analisis")
+    
+    col_dl1, col_dl2 = st.columns(2)
+    
+    with col_dl1:
+        st.download_button(
+            label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
+            data=st.session_state.pdf_bytes,
+            file_name=f"Laporan_PCI_{lokasi.replace(' ', '_')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
+        
+    with col_dl2:
+        st.download_button(
+            label="🗺️ Download Data Spasial (GeoPackage / .gpkg)",
+            data=st.session_state.gpkg_bytes,
+            file_name=f"Peta_PCI_{lokasi.replace(' ', '_')}.gpkg",
+            mime="application/geopackage+sqlite3",
+            type="secondary",
+            use_container_width=True
+        )
 
-    st.download_button(
-        label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
-        data=st.session_state.pdf_bytes,
-        file_name=f"PCI_{lokasi.replace(' ', '_')}.pdf",
-        mime="application/pdf",
-        type="primary"
-    )
 
 
 
