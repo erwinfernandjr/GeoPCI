@@ -616,15 +616,90 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         st.image(grafik_path)
                         st.metric("Rata-rata PCI", round(df_pci["PCI"].mean(), 2))
                     
-                    st.subheader("Tabel Rekapitulasi per Segmen")
+                    st.subheader("Tabel Rekapitulasi Umum")
                     st.dataframe(df_pci[["Segmen", "STA", "TDV", "CDV", "PCI", "Rating"]], use_container_width=True)
 
-                    # Simpan data file ke memori untuk diunduh
+                    # =========================================
+                    # FITUR BARU: DASHBOARD DETAIL PER SEGMEN
+                    # =========================================
+                    st.markdown("---")
+                    st.subheader("🔎 Dashboard Detail Per Segmen")
+                    st.markdown("Pilih nomor segmen di bawah ini untuk melihat rincian perhitungan setara lembar kerja ASTM.")
+
+                    # Membuat Dropdown Pilihan Segmen
+                    list_segmen = df_pci["Segmen"].tolist()
+                    pilihan_segmen = st.selectbox("Pilih Segmen:", list_segmen)
+
+                    if pilihan_segmen:
+                        # Ambil data spesifik sesuai segmen yang dipilih
+                        seg_data = df_pci[df_pci["Segmen"] == pilihan_segmen].iloc[0]
+                        df_seg_detail = df_detail[df_detail["Segmen"] == pilihan_segmen]
+
+                        # Hitung ulang HDV dan m untuk ditampilkan
+                        hdv_val = df_seg_detail["DV"].max() if not df_seg_detail.empty else 0.0
+                        m_val = min(1 + (9.0 / 95.0) * (100.0 - hdv_val), 10.0) if hdv_val > 0 else 0.0
+
+                        st.markdown(f"#### REPORT SEGMEN : {pilihan_segmen} (STA: {seg_data['STA']})")
+
+                        # TABEL A: Data Sheet
+                        st.markdown("**A. Flexible Pavement Condition Data Sheet**")
+                        if df_seg_detail.empty:
+                            st.info("✅ Tidak ada kerusakan pada segmen ini.")
+                        else:
+                            display_df = df_seg_detail.copy()
+                            # Rapikan nama kerusakan
+                            display_df["Distress Type"] = display_df["Distress"].str.replace("_", " ").str.title()
+                            # Hitung luasan dari density
+                            display_df["Quantity (sq.m)"] = (display_df["Density"] / 100.0) * (interval_segmen * lebar_jalan)
+                            
+                            # Pilih dan ubah nama kolom agar rapi
+                            display_df = display_df[["Distress Type", "Severity", "Quantity (sq.m)", "Density", "DV"]]
+                            display_df.rename(columns={"Density": "Density (%)", "DV": "Deduct Value (DV)"}, inplace=True)
+                            
+                            # Tampilkan tabel tanpa index dan dengan format desimal yang rapi
+                            st.table(display_df.style.format({
+                                "Quantity (sq.m)": "{:.2f}", 
+                                "Density (%)": "{:.2f}", 
+                                "Deduct Value (DV)": "{:.2f}"
+                            }))
+
+                        # TABEL B: Nilai m
+                        st.markdown("**B. Maximum allowable number of distresses (m)**")
+                        col_b1, col_b2 = st.columns(2)
+                        with col_b1:
+                            st.info(f"**Highest Deduct Value (HDV):** {hdv_val:.2f}")
+                        with col_b2:
+                            st.info(f"**m = 1 + (9/95)*(100 - HDV) ≤ 10:** {m_val:.2f}")
+
+                        # TABEL C: Hasil PCI & Rating (Dengan pewarnaan persis PDF)
+                        st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
+                        col_c1, col_c2, col_c3 = st.columns(3)
+                        with col_c1:
+                            st.info(f"**Max_CDV:** {seg_data['CDV']:.2f}")
+                        with col_c2:
+                            st.info(f"**PCI = 100 - Max_CDV:** {seg_data['PCI']:.2f}")
+                        with col_c3:
+                            # Logika pewarnaan background dan teks kotak rating
+                            bg_col = warna_pci.get(seg_data['Rating'], "#FFFFFF")
+                            txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
+                            
+                            html_rating = f"""
+                            <div style='background-color: {bg_col}; color: {txt_col}; text-align: center; padding: 15px; border-radius: 5px; font-weight: bold; border: 1px solid #ccc;'>
+                                Rating (ASTM): {seg_data['Rating']}
+                            </div>
+                            """
+                            st.markdown(html_rating, unsafe_allow_html=True)
+
+                    st.markdown("---")
+
+                    # =========================================
+                    # TOMBOL DOWNLOAD PDF
+                    # =========================================
                     with open(pdf_path, "rb") as pdf_file:
                         pdf_bytes = pdf_file.read()
 
                     st.download_button(
-                        label="📄 Download Laporan PDF (ASTM Data Sheet)",
+                        label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
                         data=pdf_bytes,
                         file_name=f"PCI_{lokasi.replace(' ', '_')}.pdf",
                         mime="application/pdf",
@@ -633,6 +708,7 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
 
                 except Exception as e:
                     st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
+
 
 
 
