@@ -273,8 +273,19 @@ st.divider()
 # PROSES UTAMA (EKSEKUSI)
 # =========================================
 if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=True):
-    if not jalan_file or not dsm_file or not uploaded_distress:
-        st.error("⚠️ Mohon lengkapi Shapefile Jalan, DSM, dan minimal 1 Data Kerusakan.")
+    
+    # -----------------------------------------
+    # PERBAIKAN BUG VALIDASI DSM (Link/Upload)
+    # -----------------------------------------
+    is_dsm_valid = False
+    if dsm_mode == "Upload File .tif" and dsm_file is not None:
+        is_dsm_valid = True
+    elif dsm_mode == "Paste Link Google Drive" and dsm_link != "":
+        is_dsm_valid = True
+
+    # Pengecekan keseluruhan
+    if not jalan_file or not uploaded_distress or not is_dsm_valid:
+        st.error("⚠️ Mohon lengkapi Shapefile Jalan, Data DSM (Upload/Link), dan minimal 1 Data Kerusakan.")
     else:
         with st.spinner("Memproses Analisis Geospasial... (Ini mungkin memakan waktu beberapa menit)"):
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -303,17 +314,10 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     dsm_path = os.path.join(tmpdir, "dsm.tif")
                     
                     if dsm_mode == "Upload File .tif":
-                        if not dsm_file:
-                            st.error("⚠️ File DSM belum diupload!")
-                            st.stop()
                         with open(dsm_path, "wb") as f:
                             f.write(dsm_file.getbuffer())
                             
                     elif dsm_mode == "Paste Link Google Drive":
-                        if not dsm_link:
-                            st.error("⚠️ Link Google Drive belum diisi!")
-                            st.stop()
-                        
                         st.info("⏳ Mengunduh DSM dari Google Drive... (Ini sangat cepat!)")
                         import gdown
                         import re
@@ -550,5 +554,4 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     )
 
                 except Exception as e:
-
                     st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
