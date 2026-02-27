@@ -557,10 +557,29 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         
                         bg_color = warna_pci.get(seg['Rating'], "#FFFFFF")
                         txt_color = colors.black if seg['Rating'] in ["Satisfactory", "Fair", "Good"] else colors.white
-                        t_sub = Table([["HDV", "m (Max Allowable)", "Max CDV", "PCI", "Rating (ASTM)"],
-                                       [f"{hdv_val:.2f}", f"{m_val:.2f}", f"{seg['CDV']:.2f}", f"{seg['PCI']:.2f}", seg['Rating']]], colWidths=[1.8*inch]*5)
-                        t_sub.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.lightgrey), ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                                                   ('BACKGROUND', (4,1), (4,1), colors.HexColor(bg_color)), ('TEXTCOLOR', (4,1), (4,1), txt_color), ('FONTNAME', (4,1), (4,1), 'Helvetica-Bold')]))
+                        t_sub = Table(
+                            [["HDV", "m (Max Allowable)", "Max CDV", "PCI", "Rating (ASTM)"],
+                             [f"{hdv_val:.2f}", f"{m_val:.2f}", f"{seg['CDV']:.2f}", f"{seg['PCI']:.2f}", seg['Rating']]],
+                            colWidths=[1.6*inch, 1.6*inch, 1.6*inch, 1.8*inch, 2.2*inch]
+                        )
+                        
+                        t_sub.setStyle(TableStyle([
+                            ('GRID', (0,0), (-1,-1), 0.6, colors.grey),
+                            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                            ('FONTSIZE', (0,0), (-1,0), 10),
+                            ('FONTSIZE', (0,1), (-1,1), 12),
+                            ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
+                            # Highlight PCI cell (kolom ke-4 baris ke-2)
+                            ('BACKGROUND', (3,1), (3,1), colors.HexColor(bg_color)),
+                            ('TEXTCOLOR', (3,1), (3,1), txt_color),
+                            ('ALIGN', (3,1), (3,1), 'CENTER'),
+                            # Bold rating cell and give border
+                            ('BACKGROUND', (4,1), (4,1), colors.whitesmoke),
+                            ('BOX', (4,1), (4,1), 1.0, colors.HexColor(bg_color)),
+                            ('FONTSIZE', (4,1), (4,1), 11),
+                            ('FONTNAME', (4,1), (4,1), 'Helvetica-Bold')
+                        ]))
                         elements.append(t_sub)
                         
                     doc.build(elements)
@@ -685,30 +704,73 @@ if st.session_state.proses_selesai:
                 hide_index=True
             )
 
-        # TABEL B
+        # -----------------------------
+        # GANTI: TABEL B (Maximum allowable number of distresses (m))
+        # -----------------------------
         st.markdown("**B. Maximum allowable number of distresses (m)**")
-        col_b1, col_b2 = st.columns(2)
+        col_b1, col_b2 = st.columns([1,1], gap="large")
         with col_b1:
-            st.info(f"**Highest Deduct Value (HDV):** {hdv_val:.2f}")
+            st.markdown(f"""
+            <div style="background:#f7fbff;border:1px solid #d0e6ff;padding:12px;border-radius:10px;text-align:center;">
+              <div style="font-size:13px;color:#34495e;font-weight:600;">Highest Deduct Value (HDV)</div>
+              <div style="font-size:32px;font-weight:800;margin-top:6px;color:#0b5394;">{hdv_val:.2f}</div>
+              <div style="font-size:11px;color:#566573;margin-top:6px;">(DV tertinggi yang ditemukan pada segmen)</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
         with col_b2:
-            st.info(f"**m = 1 + (9/95)*(100 - HDV) ≤ 10:** {m_val:.2f}")
+            st.markdown(f"""
+            <div style="background:#fffaf0;border:1px solid #ffe6b3;padding:12px;border-radius:10px;text-align:center;">
+              <div style="font-size:13px;color:#4d3b00;font-weight:600;">m = 1 + (9/95)*(100 - HDV)  (maks 10)</div>
+              <div style="font-size:32px;font-weight:800;margin-top:6px;color:#b35900;">{m_val:.2f}</div>
+              <div style="font-size:11px;color:#7a6b47;margin-top:6px;">(Jumlah maksimum distress yang dipertimbangkan)</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.caption("HDV dan m digunakan untuk menentukan berapa banyak Deduct Values yang masuk perhitungan CDV.")
 
-        # TABEL C
-        warna_pci_dict = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
-        st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
-        col_c1, col_c2, col_c3 = st.columns(3)
-        with col_c1:
-            st.info(f"**Max_CDV:** {seg_data['CDV']:.2f}")
-        with col_c2:
-            st.info(f"**PCI = 100 - Max_CDV:** {seg_data['PCI']:.2f}")
-        with col_c3:
-            bg_col = warna_pci_dict.get(seg_data['Rating'], "#FFFFFF")
-            txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
-            html_rating = f"""<div style='background-color: {bg_col}; color: {txt_col}; text-align: center; padding: 15px; border-radius: 5px; font-weight: bold; border: 1px solid #ccc;'>Rating (ASTM): {seg_data['Rating']}</div>"""
-            st.markdown(html_rating, unsafe_allow_html=True)
-
-    st.markdown("---")
-
+    # -----------------------------
+    # GANTI: TABEL C (Calculate Pavement Condition Index)
+    # -----------------------------
+    st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
+    col_c1, col_c2, col_c3 = st.columns([1,1,1], gap="large")
+    
+    # Max CDV
+    with col_c1:
+        st.markdown(f"""
+        <div style="background:#f3f8f1;border:1px solid #d7efd8;padding:12px;border-radius:10px;text-align:center;">
+          <div style="font-size:13px;color:#1b5e20;font-weight:600;">Max CDV</div>
+          <div style="font-size:28px;font-weight:800;margin-top:6px;color:#145214;">{seg_data['CDV']:.2f}</div>
+          <div style="font-size:11px;color:#4b6b4b;margin-top:6px;">(Total deduct value yang menentukan PCI)</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # PCI + progress bar
+    with col_c2:
+        pci_val = seg_data['PCI']
+        st.markdown(f"""
+        <div style="padding:6px;border-radius:10px;text-align:center;">
+          <div style="font-size:13px;color:#222;font-weight:600;">PCI = 100 - Max_CDV</div>
+          <div style="font-size:36px;font-weight:900;margin-top:6px;">{pci_val:.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        # progress bar visual (normalisasi ke 0..1)
+        st.progress(min(max(pci_val/100.0, 0.0), 1.0))
+    
+    # Rating card (besar & kontras)
+    with col_c3:
+        bg_col = warna_pci_dict.get(seg_data['Rating'], "#FFFFFF")
+        txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
+        st.markdown(f"""
+        <div style="background:{bg_col}; color:{txt_col}; padding:18px; border-radius:10px; text-align:center; border:1px solid #ccc;">
+          <div style="font-size:12px;font-weight:600;">Rating (ASTM)</div>
+          <div style="font-size:28px;font-weight:900;margin-top:8px;">{seg_data['Rating']}</div>
+          <div style="font-size:11px;margin-top:6px;">(Kategori kondisi perkerasan menurut ASTM D6433)</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.caption("PCI di atas juga divisualkan sebagai progress bar untuk memudahkan pembacaan kondisi secara cepat.")
+    
     # Tombol Download PDF
     st.download_button(
         label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
@@ -717,3 +779,4 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
