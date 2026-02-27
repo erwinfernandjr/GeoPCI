@@ -460,110 +460,15 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     seg_gdf["PCI"] = seg_gdf["PCI"].fillna(100)
                     seg_gdf["Rating"] = seg_gdf["Rating"].fillna("Good")
 
-                    # ===========================
-                    # VISUALISASI PETA & GRAFIK  (robust & guarded)
-                    # ===========================
-                    # Pastikan warna sudah ada (jika Anda sudah meletakkan warna di top-level, ini tidak akan menimpa)
-                    if 'warna_pci' not in locals():
-                        warna_pci = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00",
-                                     "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
-                    if 'info_card_bg' not in locals():
-                        info_card_bg = "#f3f8f1"
-                    if 'info_card_border' not in locals():
-                        info_card_border = "#d7efd8"
-                    if 'info_card_txt' not in locals():
-                        info_card_txt = "#145214"
+                    # =========================================
+                    # VISUALISASI PETA & GRAFIK
+                    # =========================================
+                    warna_pci = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
                     
-                    # Siapkan default paths agar selalu ada variabel ketika diexpose ke session_state
-                    peta_path = os.path.join(tmpdir, "peta_pci.png")
-                    grafik_path = os.path.join(tmpdir, "grafik_pci.png")
-                    
-                    # Jika seg_gdf valid dan tidak kosong -> buat peta; jika tidak, buat gambar placeholder sederhana
-                    try:
-                        if 'seg_gdf' in locals() and isinstance(seg_gdf, gpd.GeoDataFrame) and not seg_gdf.empty:
-                            # Buat plot peta
-                            fig_map, ax_map = plt.subplots(figsize=(10,6))
-                            seg_plot = seg_gdf.copy()
-                            # buffer kecil supaya label tidak terlalu menempel pada batas polygon (opsional)
-                            try:
-                                seg_plot["geometry"] = seg_plot.geometry.buffer(4)
-                            except Exception:
-                                # kalau buffer gagal, tetap gunakan geometry asli
-                                seg_plot = seg_gdf.copy()
-                    
-                            legend_handles = []
-                            for rating, warna in warna_pci.items():
-                                subset = seg_plot[seg_plot["Rating"] == rating]
-                                if not subset.empty:
-                                    subset.plot(ax=ax_map, color=warna, edgecolor="black", label=f"{rating}")
-                                    legend_handles.append(mpatches.Patch(color=warna, label=f"{rating} ({len(subset)})"))
-                    
-                            # label segmen (gunakan representative_point() agar berada di dalam poligon)
-                            for idx, row in seg_gdf.iterrows():
-                                try:
-                                    pt = row.geometry.representative_point() if hasattr(row.geometry, "representative_point") else row.geometry.centroid
-                                    ax_map.text(
-                                        pt.x, pt.y,
-                                        f"S{row['Segmen']}\n{row['PCI']:.0f}",
-                                        fontsize=7, weight="bold", ha="center", va="center",
-                                        bbox=dict(facecolor="white", alpha=0.8, boxstyle="round,pad=0.2", edgecolor="gray", lw=0.4)
-                                    )
-                                except Exception:
-                                    # jika ada masalah dengan satu row, lewati agar tidak menghentikan keseluruhan loop
-                                    continue
-                    
-                            if legend_handles:
-                                ax_map.legend(handles=legend_handles, loc="best", title="Kategori PCI", fontsize=8, title_fontsize=9)
-                    
-                            ax_map.axis("off")
-                            plt.savefig(peta_path, dpi=300, bbox_inches='tight')
-                            plt.close(fig_map)
-                    
-                            # Buat grafik ringkasan
-                            fig_bar, ax_bar = plt.subplots(figsize=(6,4))
-                            rekap = seg_gdf["Rating"].value_counts()
-                            warna_bar = [warna_pci.get(x, "grey") for x in rekap.index]
-                            rekap.plot(kind="bar", color=warna_bar, edgecolor="black", ax=ax_bar)
-                            plt.xticks(rotation=45)
-                            plt.tight_layout()
-                            plt.savefig(grafik_path, dpi=300)
-                            plt.close(fig_bar)
-                    
-                        else:
-                            # fallback: buat gambar placeholder sederhana jika tidak ada seg_gdf
-                            import matplotlib.pyplot as _plt
-                            fig_map, ax_map = _plt.subplots(figsize=(10,6))
-                            ax_map.text(0.5, 0.5, "Peta tidak tersedia (tidak ada segmen)", ha="center", va="center", fontsize=16, color="gray")
-                            ax_map.axis("off")
-                            _plt.savefig(peta_path, dpi=150, bbox_inches='tight')
-                            _plt.close(fig_map)
-                    
-                            fig_bar, ax_bar = _plt.subplots(figsize=(6,4))
-                            ax_bar.text(0.5, 0.5, "Grafik tidak tersedia", ha="center", va="center", fontsize=12, color="gray")
-                            ax_bar.axis("off")
-                            _plt.savefig(grafik_path, dpi=150, bbox_inches='tight')
-                            _plt.close(fig_bar)
-                    
-                    except Exception as vis_e:
-                        # Jika terjadi error di blok visualisasi, catat (tetap lanjutkan proses sehingga PDF dibuat jika mungkin)
-                        st.warning(f"⚠️ Visualisasi peta/grafik gagal dibuat: {vis_e}")
-                        # buat placeholder minimal agar peta_path/grafik_path tetap ada
-                        try:
-                            import matplotlib.pyplot as _plt
-                            fig_map, ax_map = _plt.subplots(figsize=(10,6))
-                            ax_map.text(0.5, 0.5, "Peta gagal dibuat", ha="center", va="center", fontsize=14, color="gray")
-                            ax_map.axis("off")
-                            _plt.savefig(peta_path, dpi=150, bbox_inches='tight')
-                            _plt.close(fig_map)
-                            fig_bar, ax_bar = _plt.subplots(figsize=(6,4))
-                            ax_bar.text(0.5, 0.5, "Grafik gagal dibuat", ha="center", va="center", fontsize=12, color="gray")
-                            ax_bar.axis("off")
-                            _plt.savefig(grafik_path, dpi=150, bbox_inches='tight')
-                            _plt.close(fig_bar)
-                        except Exception:
-                            # kalau pembuatan placeholder juga gagal, jangan lempar lagi — file tidak ada tapi proses masih aman
-                            pass
-                    # -- SELESAI: konstanta warna UI --
+                    # Peta
+                    fig_map, ax_map = plt.subplots(figsize=(10,6))
+                    seg_plot = seg_gdf.copy()
+                    seg_plot["geometry"] = seg_plot.geometry.buffer(4)
                     
                     legend_handles = []
                     
@@ -652,29 +557,10 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                         
                         bg_color = warna_pci.get(seg['Rating'], "#FFFFFF")
                         txt_color = colors.black if seg['Rating'] in ["Satisfactory", "Fair", "Good"] else colors.white
-                        t_sub = Table(
-                            [["HDV", "m (Max Allowable)", "Max CDV", "PCI", "Rating (ASTM)"],
-                             [f"{hdv_val:.2f}", f"{m_val:.2f}", f"{seg['CDV']:.2f}", f"{seg['PCI']:.2f}", seg['Rating']]],
-                            colWidths=[1.6*inch, 1.6*inch, 1.6*inch, 1.8*inch, 2.2*inch]
-                        )
-                        
-                        t_sub.setStyle(TableStyle([
-                            ('GRID', (0,0), (-1,-1), 0.6, colors.grey),
-                            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-                            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                            ('FONTSIZE', (0,0), (-1,0), 10),
-                            ('FONTSIZE', (0,1), (-1,1), 12),
-                            ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
-                            # Highlight PCI cell (kolom ke-4 baris ke-2)
-                            ('BACKGROUND', (3,1), (3,1), colors.HexColor(bg_color)),
-                            ('TEXTCOLOR', (3,1), (3,1), txt_color),
-                            ('ALIGN', (3,1), (3,1), 'CENTER'),
-                            # Bold rating cell and give border
-                            ('BACKGROUND', (4,1), (4,1), colors.whitesmoke),
-                            ('BOX', (4,1), (4,1), 1.0, colors.HexColor(bg_color)),
-                            ('FONTSIZE', (4,1), (4,1), 11),
-                            ('FONTNAME', (4,1), (4,1), 'Helvetica-Bold')
-                        ]))
+                        t_sub = Table([["HDV", "m (Max Allowable)", "Max CDV", "PCI", "Rating (ASTM)"],
+                                       [f"{hdv_val:.2f}", f"{m_val:.2f}", f"{seg['CDV']:.2f}", f"{seg['PCI']:.2f}", seg['Rating']]], colWidths=[1.8*inch]*5)
+                        t_sub.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.lightgrey), ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                                                   ('BACKGROUND', (4,1), (4,1), colors.HexColor(bg_color)), ('TEXTCOLOR', (4,1), (4,1), txt_color), ('FONTNAME', (4,1), (4,1), 'Helvetica-Bold')]))
                         elements.append(t_sub)
                         
                     doc.build(elements)
@@ -799,72 +685,30 @@ if st.session_state.proses_selesai:
                 hide_index=True
             )
 
-        # -----------------------------
-        # B. Maximum allowable number of distresses (m)
-        # -----------------------------
+        # TABEL B
         st.markdown("**B. Maximum allowable number of distresses (m)**")
-        col_b1, col_b2 = st.columns([1,1], gap="large")
+        col_b1, col_b2 = st.columns(2)
         with col_b1:
-            st.markdown(f"""
-            <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
-              <div style="font-size:13px;color:#34495e;font-weight:600;">Highest Deduct Value (HDV)</div>
-              <div style="font-size:32px;font-weight:800;margin-top:6px;color:{info_card_txt};">{hdv_val:.2f}</div>
-              <div style="font-size:11px;color:#566573;margin-top:6px;">(DV tertinggi yang ditemukan pada segmen)</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
+            st.info(f"**Highest Deduct Value (HDV):** {hdv_val:.2f}")
         with col_b2:
-            st.markdown(f"""
-            <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
-              <div style="font-size:13px;color:#4d3b00;font-weight:600;">m = 1 + (9/95)*(100 - HDV)  (maks 10)</div>
-              <div style="font-size:32px;font-weight:800;margin-top:6px;color:{info_card_txt};">{m_val:.2f}</div>
-              <div style="font-size:11px;color:#7a6b47;margin-top:6px;">(Jumlah maksimum distress yang dipertimbangkan)</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.caption("HDV dan m digunakan untuk menentukan berapa banyak Deduct Values yang masuk perhitungan CDV.")
+            st.info(f"**m = 1 + (9/95)*(100 - HDV) ≤ 10:** {m_val:.2f}")
 
-        # -----------------------------
-        # C. Calculate Pavement Condition Index (PCI)
-        # -----------------------------
+        # TABEL C
+        warna_pci_dict = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
         st.markdown("**C. Calculate Pavement Condition Index (PCI)**")
-        col_c1, col_c2, col_c3 = st.columns([1,1,1], gap="large")
-        
-        # Max CDV (sama background)
+        col_c1, col_c2, col_c3 = st.columns(3)
         with col_c1:
-            st.markdown(f"""
-            <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
-              <div style="font-size:13px;color:#1b5e20;font-weight:600;">Max CDV</div>
-              <div style="font-size:28px;font-weight:800;margin-top:6px;color:{info_card_txt};">{seg_data['CDV']:.2f}</div>
-              <div style="font-size:11px;color:#4b6b4b;margin-top:6px;">(Total deduct value yang menentukan PCI)</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # PCI + progress bar (bungkus juga supaya bg sama)
+            st.info(f"**Max_CDV:** {seg_data['CDV']:.2f}")
         with col_c2:
-            pci_val = seg_data['PCI']
-            st.markdown(f"""
-            <div style="background:{info_card_bg};border:1px solid {info_card_border};padding:12px;border-radius:10px;text-align:center;">
-              <div style="font-size:13px;color:#222;font-weight:600;">PCI = 100 - Max_CDV</div>
-              <div style="font-size:36px;font-weight:900;margin-top:6px;color:{info_card_txt};">{pci_val:.2f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            st.progress(min(max(pci_val/100.0, 0.0), 1.0))
-        
-        # Rating card (TIDAK diubah — tetap pakai warna per rating)
+            st.info(f"**PCI = 100 - Max_CDV:** {seg_data['PCI']:.2f}")
         with col_c3:
-            bg_col = warna_pci.get(seg_data['Rating'], "#FFFFFF")
+            bg_col = warna_pci_dict.get(seg_data['Rating'], "#FFFFFF")
             txt_col = "black" if seg_data['Rating'] in ["Satisfactory", "Fair", "Good"] else "white"
-            st.markdown(f"""
-            <div style="background:{bg_col}; color:{txt_col}; padding:18px; border-radius:10px; text-align:center; border:1px solid #ccc;">
-              <div style="font-size:12px;font-weight:600;">Rating (ASTM)</div>
-              <div style="font-size:28px;font-weight:900;margin-top:8px;">{seg_data['Rating']}</div>
-              <div style="font-size:11px;margin-top:6px;">(Kategori kondisi perkerasan menurut ASTM D6433)</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.caption("PCI di atas juga divisualkan sebagai progress bar untuk memudahkan pembacaan kondisi secara cepat.")
-    
+            html_rating = f"""<div style='background-color: {bg_col}; color: {txt_col}; text-align: center; padding: 15px; border-radius: 5px; font-weight: bold; border: 1px solid #ccc;'>Rating (ASTM): {seg_data['Rating']}</div>"""
+            st.markdown(html_rating, unsafe_allow_html=True)
+
+    st.markdown("---")
+
     # Tombol Download PDF
     st.download_button(
         label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
@@ -873,9 +717,3 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
-
-
-
-
-
-
