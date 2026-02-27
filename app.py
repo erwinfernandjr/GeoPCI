@@ -129,9 +129,7 @@ def hitung_diameter_pothole(gdf):
     gdf["DIAMETER_MM"] = diameter_list
     return gdf
 
-# --- PERUBAHAN BESAR: FUNGSI HEMAT RAM UNTUK MEMBACA DSM ---
 def hitung_depth(gdf, dsm_path, buffer_distance=0.3):
-    # Hanya buka file sebentar untuk mengambil info CRS dan Nodata (Tidak meload map ke RAM)
     with rasterio.open(dsm_path) as DSM:
         dsm_crs = DSM.crs
         nodata_val = DSM.nodata
@@ -142,7 +140,6 @@ def hitung_depth(gdf, dsm_path, buffer_distance=0.3):
     buffer_outer = gdf.geometry.buffer(buffer_distance)
     ring_geom = buffer_outer.difference(gdf.geometry)
 
-    # Zonal_stats langsung membaca dari file Path (Windowed Reading). Super Hemat RAM!
     stats_hole = zonal_stats(gdf.geometry, dsm_path, stats=["percentile_10"], nodata=nodata_val)
     stats_ring = zonal_stats(ring_geom, dsm_path, stats=["median"], nodata=nodata_val)
 
@@ -157,7 +154,6 @@ def hitung_depth(gdf, dsm_path, buffer_distance=0.3):
     gdf = gdf.copy()
     gdf["DEPTH_MM"] = depth_list
     return gdf
-# -----------------------------------------------------------
 
 def tentukan_severity(distress_type, row):
     distress = distress_type.lower()
@@ -333,7 +329,10 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     for key, file in uploaded_distress.items():
                         gdf = read_zip_shapefile(file, tmpdir)
                         if gdf is not None:
-                            if gdf.crs != seg_gdf.crs:
+                            # --- PERBAIKAN BUG CRS ---
+                            if gdf.crs is None:
+                                gdf.set_crs(seg_gdf.crs, inplace=True)
+                            elif gdf.crs != seg_gdf.crs:
                                 gdf = gdf.to_crs(seg_gdf.crs)
                             distress_layers[key] = gdf
 
@@ -358,8 +357,12 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     # 4. OVERLAY & FLATTEN
                     df_detail_list = []
                     if all_distress_list:
-                        master_distress = pd.concat(all_distress_list, ignore_index=True)
+                        # --- PERBAIKAN BUG CRS: Copot atribut GeoDataFrame sementara ---
+                        plain_dfs = [pd.DataFrame(gdf) for gdf in all_distress_list]
+                        master_distress = pd.concat(plain_dfs, ignore_index=True)
+                        # Pasang kembali atribut GeoDataFrame dengan CRS murni dari jalan
                         master_distress = gpd.GeoDataFrame(master_distress, geometry="geometry", crs=seg_gdf.crs)
+                        
                         master_distress = master_distress.sort_values(by="Priority", ascending=False).reset_index(drop=True)
                         
                         accumulated_geom = Polygon()
