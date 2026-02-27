@@ -258,6 +258,7 @@ with st.sidebar:
     lebar_jalan = st.number_input("Lebar Jalan (m)", value=3.5, step=0.1)
     interval_segmen = st.number_input("Interval Segmen (m)", value=100, step=10)
     epsg_code = st.number_input("Kode EPSG UTM Lokal (Contoh: 32749 untuk Jawa Tengah)", value=32749, step=1)
+   
     st.divider()
         if st.button("🔄 Reset / Mulai Ulang Aplikasi", use_container_width=True):
             for key in st.session_state.keys():
@@ -942,5 +943,6 @@ if st.session_state.proses_selesai:
             type="secondary",
             use_container_width=True
         )
+
 
 
