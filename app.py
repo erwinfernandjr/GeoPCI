@@ -463,15 +463,22 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     # =========================================
                     # VISUALISASI PETA & GRAFIK
                     # =========================================
-                    warna_pci = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
+                    # -- MULAI: konstanta warna UI (module-level, harus selalu ada di setiap run) --
+                    warna_pci = {
+                        "Good": "#006400",
+                        "Satisfactory": "#8FBC8F",
+                        "Fair": "#FFFF00",
+                        "Poor": "#FF6347",
+                        "Very Poor": "#FF4500",
+                        "Serious": "#8B0000",
+                        "Failed": "#A9A9A9"
+                    }
+                    
                     # Warna untuk kartu informasi (samakan semua kecuali Rating)
                     info_card_bg = "#f3f8f1"      # latar kartu (light green-ish)
                     info_card_border = "#d7efd8"  # border yang serasi
                     info_card_txt = "#145214"     # teks angka/utama
-                    # Peta
-                    fig_map, ax_map = plt.subplots(figsize=(10,6))
-                    seg_plot = seg_gdf.copy()
-                    seg_plot["geometry"] = seg_plot.geometry.buffer(4)
+                    # -- SELESAI: konstanta warna UI --
                     
                     legend_handles = []
                     
@@ -781,6 +788,7 @@ if st.session_state.proses_selesai:
         mime="application/pdf",
         type="primary"
     )
+
 
 
 
