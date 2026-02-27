@@ -12,6 +12,9 @@ from shapely.ops import linemerge
 from shapely.geometry import LineString, Polygon
 import rasterio
 from rasterstats import zonal_stats
+import io
+import folium
+from streamlit_folium import st_folium
 
 # Import untuk ReportLab (PDF)
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
@@ -46,8 +49,12 @@ if 'grafik_bytes' not in st.session_state:
     st.session_state.grafik_bytes = None
 if 'pdf_bytes' not in st.session_state:
     st.session_state.pdf_bytes = None
-if 'gpkg_bytes' not in st.session_state: # <--- TAMBAHKAN BARIS INI
-    st.session_state.gpkg_bytes = None   # <--- TAMBAHKAN BARIS INI
+if 'gpkg_bytes' not in st.session_state: 
+    st.session_state.gpkg_bytes = None   
+if 'seg_gdf' not in st.session_state:
+    st.session_state.seg_gdf = None
+if 'excel_bytes' not in st.session_state:
+    st.session_state.excel_bytes = None
 
 # ==========================================================
 # DATABASE KURVA PCI (STANDAR POLINOMIAL ASTM)
@@ -714,6 +721,23 @@ if st.button("🚀 Proses & Hitung PCI", type="primary", use_container_width=Tru
                     export_gdf.to_file(gpkg_path, driver="GPKG")
 
                     # =========================================
+                    # PEMBUATAN EXCEL (DATA MENTAH)
+                    # =========================================
+                    excel_buffer = io.BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                        df_pci.to_excel(writer, sheet_name='Rekap PCI', index=False)
+                        df_detail.to_excel(writer, sheet_name='Detail Kerusakan', index=False)
+                    excel_bytes = excel_buffer.getvalue()
+
+                    # =========================================
+                    # SIMPAN KE SESSION STATE SEBELUM TEMP DIHAPUS
+                    # =========================================
+                    st.session_state.df_pci = df_pci
+                    st.session_state.df_detail = df_detail
+                    st.session_state.seg_gdf = seg_gdf           # <--- TAMBAHKAN INI UNTUK PETA
+                    st.session_state.excel_bytes = excel_bytes   # <--- TAMBAHKAN INI UNTUK EXCEL
+
+                    # =========================================
                     # SIMPAN KE SESSION STATE SEBELUM TEMP DIHAPUS
                     # =========================================
                     st.session_state.df_pci = df_pci
@@ -756,8 +780,37 @@ if st.session_state.proses_selesai:
     
     col_res1, col_res2 = st.columns([2, 1])
     with col_res1:
-        st.subheader("Peta Kondisi PCI")
-        st.image(st.session_state.peta_bytes)
+        st.subheader("🗺️ Peta Kondisi PCI (Interaktif)")
+        
+        # PETA INTERAKTIF FOLIUM
+        if st.session_state.seg_gdf is not None:
+            # Ubah CRS ke lat/lon standar web map
+            map_gdf = st.session_state.seg_gdf.to_crs(epsg=4326)
+            
+            # Cari titik tengah peta
+            center_y = map_gdf.geometry.centroid.y.mean()
+            center_x = map_gdf.geometry.centroid.x.mean()
+            
+            m = folium.Map(location=[center_y, center_x], zoom_start=15, tiles="CartoDB positron")
+            
+            warna_pci_dict = {"Good": "#006400", "Satisfactory": "#8FBC8F", "Fair": "#FFFF00", "Poor": "#FF6347", "Very Poor": "#FF4500", "Serious": "#8B0000", "Failed": "#A9A9A9"}
+            
+            folium.GeoJson(
+                map_gdf,
+                style_function=lambda feature: {
+                    'fillColor': warna_pci_dict.get(feature['properties']['Rating'], "#000000"),
+                    'color': 'black',
+                    'weight': 1,
+                    'fillOpacity': 0.8,
+                },
+                tooltip=folium.features.GeoJsonTooltip(
+                    fields=['Segmen', 'STA', 'PCI', 'Rating'], 
+                    aliases=['Segmen:', 'STA:', 'PCI:', 'Rating:'],
+                    style="font-family: Arial; font-size: 12px; padding: 5px;"
+                )
+            ).add_to(m)
+            
+            st_folium(m, use_container_width=True, height=400)
     with col_res2:
         st.subheader("Distribusi")
         st.image(st.session_state.grafik_bytes)
@@ -872,11 +925,12 @@ if st.session_state.proses_selesai:
     st.markdown("---")
     st.subheader("💾 Download Hasil Analisis")
     
-    col_dl1, col_dl2 = st.columns(2)
+    # Membagi menjadi 3 kolom
+    col_dl1, col_dl2, col_dl3 = st.columns(3)
     
     with col_dl1:
         st.download_button(
-            label="📄 Download Laporan Full PDF (ASTM Data Sheet)",
+            label="📄 Laporan Full PDF",
             data=st.session_state.pdf_bytes,
             file_name=f"Laporan_PCI_{lokasi.replace(' ', '_')}.pdf",
             mime="application/pdf",
@@ -886,14 +940,20 @@ if st.session_state.proses_selesai:
         
     with col_dl2:
         st.download_button(
-            label="🗺️ Download Data Spasial (GeoPackage / .gpkg)",
+            label="🗺️ Peta Spasial (.gpkg)",
             data=st.session_state.gpkg_bytes,
             file_name=f"Peta_PCI_{lokasi.replace(' ', '_')}.gpkg",
             mime="application/geopackage+sqlite3",
             type="secondary",
             use_container_width=True
         )
-
-
-
-
+        
+    with col_dl3:
+        st.download_button(
+            label="📊 Data Mentah (.xlsx)",
+            data=st.session_state.excel_bytes,
+            file_name=f"Data_PCI_{lokasi.replace(' ', '_')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="secondary",
+            use_container_width=True
+        )
